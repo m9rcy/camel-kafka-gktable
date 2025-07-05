@@ -1,0 +1,81 @@
+# application-test.yml
+spring:
+  kafka:
+    bootstrap-servers: localhost:9092
+    streams:
+      bootstrap-servers: localhost:9092
+      application-id: test-kafka-streams-app
+      properties:
+        default.key.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+        default.value.serde: org.springframework.kafka.support.serializer.JsonSerde
+        commit.interval.ms: 1000
+        cache.max.bytes.buffering: 0
+    producer:
+      bootstrap-servers: localhost:9092
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+    consumer:
+      bootstrap-servers: localhost:9092
+      group-id: test-consumer-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: com.example.model
+        spring.json.add.type.headers: false
+
+kafka:
+  topic:
+    order-window-topic: test-order-window-topic
+    order-window-filtered-topic: test-order-window-filtered-topic
+
+# Actuator settings
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,globalkTable
+  endpoint:
+    health:
+      show-details: always
+    globalkTable:
+      enabled: true
+
+# Logging configuration
+logging:
+  level:
+    com.example: DEBUG
+    org.apache.kafka: WARN
+    org.springframework.kafka: WARN
+    org.apache.camel: INFO
+    org.testcontainers: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# Camel configuration
+camel:
+  springboot:
+    main-run-controller: true
+  component:
+    timer:
+      daemon: false
+
+---
+# application-integration-test.yml
+spring:
+  profiles: integration-test
+  kafka:
+    bootstrap-servers: ${spring.embedded.kafka.brokers}
+    streams:
+      bootstrap-servers: ${spring.embedded.kafka.brokers}
+      application-id: integration-test-app
+      properties:
+        commit.interval.ms: 100
+        cache.max.bytes.buffering: 0
+        state.dir: /tmp/kafka-streams-test
+    producer:
+      bootstrap-servers: ${spring.embedded.kafka.brokers}
+    consumer:
+      bootstrap-servers: ${spring.embedded.kafka.brokers}
+      group-id: integration-test
