@@ -10,7 +10,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
 import org.apache.camel.builder.AdviceWith;
-import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.component.mock.MockEndpoint;
 import org.apache.camel.test.spring.junit5.CamelSpringBootTest;
 import org.apache.camel.test.spring.junit5.UseAdviceWith;
@@ -44,26 +43,26 @@ import static org.mockito.Mockito.*;
 @SpringBootTest
 @Import(TestApplicationConfig.class)
 @EmbeddedKafka(
-    partitions = 1,
-    topics = {"test-order-window-filtered-topic"},
-    brokerProperties = {
-        "listeners=PLAINTEXT://localhost:0",
-        "port=0",
-        "log.dir=/tmp/kafka-test-logs"
-    }
+        partitions = 1,
+        topics = {"test-order-window-filtered-topic"},
+        brokerProperties = {
+                "listeners=PLAINTEXT://localhost:0",
+                "port=0",
+                "log.dir=/tmp/kafka-test-logs"
+        }
 )
 @TestPropertySource(properties = {
-    "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}",
-    "kafka.topic.order-window-topic=test-order-window-topic",
-    "kafka.topic.order-window-filtered-topic=test-order-window-filtered-topic",
-    "camel.springboot.main-run-controller=true",
-    "logging.level.org.apache.kafka=WARN",
-    "logging.level.kafka=WARN",
-    "spring.kafka.streams.auto-startup=false"
+        "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}",
+        "kafka.topic.order-window-topic=test-order-window-topic",
+        "kafka.topic.order-window-filtered-topic=test-order-window-filtered-topic",
+        "camel.springboot.main-run-controller=true",
+        "logging.level.org.apache.kafka=WARN",
+        "logging.level.kafka=WARN",
+        "spring.kafka.streams.auto-startup=false"
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @UseAdviceWith
-class DataExtractorRouterTestWithEmbeddedKafka {
+class DataExtractorRouterTestWithEmbeddedKafka1 {
 
     @Autowired
     private CamelContext camelContext;
@@ -111,9 +110,9 @@ class DataExtractorRouterTestWithEmbeddedKafka {
     void testDataExtractorRouteWithGlobalKTableData() throws Exception {
         // Given - Mock GlobalKTable data that includes new events
         List<OrderWindow> mockGlobalKTableData = Arrays.asList(
-            TestDataFactory.createOrderWindow("order1", OrderStatus.APPROVED, 1),
-            TestDataFactory.createOrderWindow("order2", OrderStatus.RELEASED, 1),
-            TestDataFactory.createOrderWindow("order3", OrderStatus.APPROVED, 2) // New event
+                TestDataFactory.createOrderWindow("order1", OrderStatus.APPROVED, 1),
+                TestDataFactory.createOrderWindow("order2", OrderStatus.RELEASED, 1),
+                TestDataFactory.createOrderWindow("order3", OrderStatus.APPROVED, 2) // New event
         );
 
         // Mock the data extractor to return data from GlobalKTable
@@ -136,7 +135,7 @@ class DataExtractorRouterTestWithEmbeddedKafka {
         AdviceWith.adviceWith(camelContext, "orderWindowConsumer", a -> {
             // Replace timer with direct endpoint for testing
             a.replaceFromWith("direct:test-data-extraction");
-            
+
             // Add mock endpoint to capture final result
             a.weaveAddLast().to("mock:xml-result");
         });
@@ -151,16 +150,16 @@ class DataExtractorRouterTestWithEmbeddedKafka {
 
         // Then - Verify XML generation includes all events from GlobalKTable
         xmlResult.assertIsSatisfied(10000);
-        
+
         String generatedXml = xmlResult.getReceivedExchanges().get(0).getMessage().getBody(String.class);
-        
+
         // Verify all events are included in XML
         assertTrue(generatedXml.contains("<id>order1</id>"), "XML should contain order1");
         assertTrue(generatedXml.contains("<id>order2</id>"), "XML should contain order2");
         assertTrue(generatedXml.contains("<id>order3</id>"), "XML should contain new order3");
         assertTrue(generatedXml.contains("<status>APPROVED</status>"), "XML should contain APPROVED status");
         assertTrue(generatedXml.contains("<status>RELEASED</status>"), "XML should contain RELEASED status");
-        
+
         verify(orderWindowDataExtractorProcessor).process(any());
         verify(xmlProcessor).process(any());
     }
@@ -169,9 +168,9 @@ class DataExtractorRouterTestWithEmbeddedKafka {
     void testDataExtractorRouteWithTombstonedEvents() throws Exception {
         // Given - Mock GlobalKTable data where some events are tombstoned (excluded)
         List<OrderWindow> mockGlobalKTableDataAfterTombstone = Arrays.asList(
-            TestDataFactory.createOrderWindow("order1", OrderStatus.APPROVED, 1),
-            TestDataFactory.createOrderWindow("order3", OrderStatus.APPROVED, 2)
-            // order2 is tombstoned (not included in GlobalKTable data)
+                TestDataFactory.createOrderWindow("order1", OrderStatus.APPROVED, 1),
+                TestDataFactory.createOrderWindow("order3", OrderStatus.APPROVED, 2)
+                // order2 is tombstoned (not included in GlobalKTable data)
         );
 
         // Mock the data extractor to return only non-tombstoned data
@@ -206,56 +205,21 @@ class DataExtractorRouterTestWithEmbeddedKafka {
 
         // Then - Verify tombstoned events are excluded from XML
         xmlResult.assertIsSatisfied(10000);
-        
+
         String generatedXml = xmlResult.getReceivedExchanges().get(0).getMessage().getBody(String.class);
-        
+
         // Verify remaining events are included
         assertTrue(generatedXml.contains("<id>order1</id>"), "XML should contain order1");
         assertTrue(generatedXml.contains("<id>order3</id>"), "XML should contain order3");
-        
+
         // Verify tombstoned event is excluded
         assertFalse(generatedXml.contains("<id>order2</id>"), "XML should NOT contain tombstoned order2");
-        
+
         verify(orderWindowDataExtractorProcessor).process(any());
         verify(xmlProcessor).process(any());
     }
 
     @Test
-    void testTombstoneCleanupRouteLogicOnly() throws Exception {
-        // Given
-        List<String> keysToTombstone = Arrays.asList("expired-order1", "expired-order2");
-
-        doAnswer(invocation -> {
-            Exchange exchange = invocation.getArgument(0);
-            exchange.getMessage().setBody(keysToTombstone);
-            exchange.getMessage().setHeader("tombstoneCount", keysToTombstone.size());
-            return null;
-        }).when(orderWindowTombstoneProcessor).process(any());
-
-        // Use AdviceWith to replace Kafka with mock
-        AdviceWith.adviceWith(camelContext, "orderWindowTombstoneCleanup", a -> {
-            a.replaceFromWith("direct:test-tombstone-cleanup");
-            a.weaveByToString(".*kafka:.*").replace().to("mock:kafka-tombstone");
-        });
-
-        camelContext.start();
-
-        MockEndpoint kafkaMock = camelContext.getEndpoint("mock:kafka-tombstone", MockEndpoint.class);
-        kafkaMock.expectedMessageCount(2);
-
-        // When
-        camelContext.createProducerTemplate().sendBody("direct:test-tombstone-cleanup", "trigger");
-
-        // Then
-        kafkaMock.assertIsSatisfied(5000);
-
-        // Verify tombstone message structure
-        for (Exchange exchange : kafkaMock.getReceivedExchanges()) {
-            assertNull(exchange.getMessage().getBody());
-            assertNotNull(exchange.getMessage().getHeader("CamelKafkaKey"));
-        }
-    }
-    //@Test
     void testTombstoneCleanupRouteWithEmbeddedKafka() throws Exception {
         // Given - Mock tombstone processor to identify keys for cleanup
         List<String> keysToTombstone = Arrays.asList("expired-order1", "expired-order2");
@@ -270,12 +234,12 @@ class DataExtractorRouterTestWithEmbeddedKafka {
         // Use AdviceWith to modify the tombstone route to use embedded Kafka
         AdviceWith.adviceWith(camelContext, "orderWindowTombstoneCleanup", a -> {
             a.replaceFromWith("direct:test-tombstone-cleanup");
-            
+
             // Replace the Kafka endpoint to use embedded broker
             a.weaveByToString(".*kafka:.*").replace().to(
-                "kafka:test-order-window-filtered-topic?brokers=" + kafkaHelper.getBrokerList() +
-                "&keySerializer=org.apache.kafka.common.serialization.StringSerializer" +
-                "&valueSerializer=org.apache.kafka.common.serialization.StringSerializer"
+                    "kafka:test-order-window-filtered-topic?brokers=" + kafkaHelper.getBrokerList() +
+                            "&keySerializer=org.apache.kafka.common.serialization.StringSerializer" +
+                            "&valueSerializer=org.apache.kafka.common.serialization.StringSerializer"
             );
         });
 
@@ -285,17 +249,17 @@ class DataExtractorRouterTestWithEmbeddedKafka {
         camelContext.createProducerTemplate().sendBody("direct:test-tombstone-cleanup", "trigger");
 
         // Then - Verify tombstone messages are sent to Kafka
-        await().atMost(30, TimeUnit.SECONDS).untilAsserted(() -> {
+        await().atMost(15, TimeUnit.SECONDS).untilAsserted(() -> {
             Map<String, ConsumerRecord<String, String>> records = kafkaHelper.consumeMessagesAsMap(
-                "test-order-window-filtered-topic", Duration.ofSeconds(10));
-            
+                    "test-order-window-filtered-topic", Duration.ofSeconds(5));
+
             assertEquals(2, records.size(), "Should have received 2 tombstone messages");
-            
+
             for (String expectedKey : keysToTombstone) {
-                assertTrue(records.containsKey(expectedKey), 
-                    "Should contain tombstone for key: " + expectedKey);
-                assertNull(records.get(expectedKey).value(), 
-                    "Value should be null for tombstone message: " + expectedKey);
+                assertTrue(records.containsKey(expectedKey),
+                        "Should contain tombstone for key: " + expectedKey);
+                assertNull(records.get(expectedKey).value(),
+                        "Value should be null for tombstone message: " + expectedKey);
             }
         });
 
@@ -329,7 +293,7 @@ class DataExtractorRouterTestWithEmbeddedKafka {
 
         // Then
         noDataResult.assertIsSatisfied(5000);
-        
+
         verify(orderWindowDataExtractorProcessor).process(any());
         verify(xmlProcessor, never()).process(any()); // Should not process XML when no data
     }
@@ -337,10 +301,10 @@ class DataExtractorRouterTestWithEmbeddedKafka {
     @Test
     void testActualRouteLogicFlow() throws Exception {
         // Test the actual choice/when logic in your DataExtractorRouter
-        
+
         // Given - Data that should trigger XML processing
         List<OrderWindow> testData = Arrays.asList(
-            TestDataFactory.createOrderWindow("test-order", OrderStatus.APPROVED, 1)
+                TestDataFactory.createOrderWindow("test-order", OrderStatus.APPROVED, 1)
         );
 
         doAnswer(invocation -> {
@@ -360,7 +324,7 @@ class DataExtractorRouterTestWithEmbeddedKafka {
         // Use AdviceWith to test the actual route logic
         AdviceWith.adviceWith(camelContext, "orderWindowConsumer", a -> {
             a.replaceFromWith("direct:test-route-logic");
-            
+
             // Intercept log endpoints to verify route flow
             a.mockEndpoints("log:*");
             a.weaveAddLast().to("mock:final-result");
@@ -380,7 +344,7 @@ class DataExtractorRouterTestWithEmbeddedKafka {
         // Verify the XML content was generated
         String result = finalResult.getReceivedExchanges().get(0).getMessage().getBody(String.class);
         assertTrue(result.contains("<id>test-order</id>"));
-        
+
         verify(orderWindowDataExtractorProcessor).process(any());
         verify(xmlProcessor).process(any());
     }
@@ -392,12 +356,12 @@ class DataExtractorRouterTestWithEmbeddedKafka {
         // 2. Generate XML (should include new events)
         // 3. Tombstone some events
         // 4. Generate XML again (should exclude tombstoned events)
-        
+
         // Step 1: Initial data with multiple events
         List<OrderWindow> initialData = Arrays.asList(
-            TestDataFactory.createOrderWindow("order1", OrderStatus.APPROVED, 1),
-            TestDataFactory.createOrderWindow("order2", OrderStatus.RELEASED, 1),
-            TestDataFactory.createOrderWindow("order3", OrderStatus.APPROVED, 1)
+                TestDataFactory.createOrderWindow("order1", OrderStatus.APPROVED, 1),
+                TestDataFactory.createOrderWindow("order2", OrderStatus.RELEASED, 1),
+                TestDataFactory.createOrderWindow("order3", OrderStatus.APPROVED, 1)
         );
 
         // Mock first extraction (before tombstone)
@@ -432,7 +396,7 @@ class DataExtractorRouterTestWithEmbeddedKafka {
         // Then - Verify all events are in XML
         workflowResult.assertIsSatisfied(5000);
         String firstXml = workflowResult.getReceivedExchanges().get(0).getMessage().getBody(String.class);
-        
+
         assertTrue(firstXml.contains("<id>order1</id>"), "First XML should contain order1");
         assertTrue(firstXml.contains("<id>order2</id>"), "First XML should contain order2");
         assertTrue(firstXml.contains("<id>order3</id>"), "First XML should contain order3");
@@ -443,9 +407,9 @@ class DataExtractorRouterTestWithEmbeddedKafka {
 
         // Step 2: After tombstone (order2 removed)
         List<OrderWindow> dataAfterTombstone = Arrays.asList(
-            TestDataFactory.createOrderWindow("order1", OrderStatus.APPROVED, 1),
-            TestDataFactory.createOrderWindow("order3", OrderStatus.APPROVED, 1)
-            // order2 tombstoned - not present
+                TestDataFactory.createOrderWindow("order1", OrderStatus.APPROVED, 1),
+                TestDataFactory.createOrderWindow("order3", OrderStatus.APPROVED, 1)
+                // order2 tombstoned - not present
         );
 
         // Update mock to return data without tombstoned events
@@ -462,7 +426,7 @@ class DataExtractorRouterTestWithEmbeddedKafka {
         // Then - Verify tombstoned event is excluded
         workflowResult.assertIsSatisfied(5000);
         String secondXml = workflowResult.getReceivedExchanges().get(0).getMessage().getBody(String.class);
-        
+
         assertTrue(secondXml.contains("<id>order1</id>"), "Second XML should still contain order1");
         assertTrue(secondXml.contains("<id>order3</id>"), "Second XML should still contain order3");
         assertFalse(secondXml.contains("<id>order2</id>"), "Second XML should NOT contain tombstoned order2");
@@ -472,10 +436,10 @@ class DataExtractorRouterTestWithEmbeddedKafka {
         StringBuilder xml = new StringBuilder("<?xml version=\"1.0\"?><poxp>");
         for (OrderWindow order : orderWindows) {
             xml.append("<out_update><out>")
-               .append("<id>").append(order.getId()).append("</id>")
-               .append("<status>").append(order.getStatus()).append("</status>")
-               .append("<notes></notes>")
-               .append("</out></out_update>");
+                    .append("<id>").append(order.getId()).append("</id>")
+                    .append("<status>").append(order.getStatus()).append("</status>")
+                    .append("<notes></notes>")
+                    .append("</out></out_update>");
         }
         xml.append("</poxp>");
         return xml.toString();
