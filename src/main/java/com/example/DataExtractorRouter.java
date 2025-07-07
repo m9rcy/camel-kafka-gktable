@@ -11,6 +11,13 @@ import org.apache.kafka.streams.kstream.GlobalKTable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+import java.io.StringWriter;
+
 @Component
 public class DataExtractorRouter extends RouteBuilder {
     @Autowired
@@ -37,6 +44,15 @@ public class DataExtractorRouter extends RouteBuilder {
                     .when(header("dataExtractCount").isGreaterThan(0))
                         .log("Found ${header.dataExtractCount} records to process")
                         .process(xmlProcessor)
+                        // Convert DOMSource to XML String with declaration
+                        .process(exchange -> {
+                            Object body = exchange.getIn().getBody();
+                            if (body instanceof DOMSource) {
+                                DOMSource domSource = (DOMSource) body;
+                                String xmlString = convertDomSourceToXmlString(domSource);
+                                exchange.getMessage().setBody(xmlString);
+                            }
+                        })
                     .endChoice()
                     .otherwise()
                         .log("No records found to extract")
@@ -65,5 +81,25 @@ public class DataExtractorRouter extends RouteBuilder {
                     .otherwise()
                         .log("No records found for tombstone cleanup")
                 .end();
+    }
+
+    private String convertDomSourceToXmlString(DOMSource domSource) {
+        try {
+            TransformerFactory transformerFactory = TransformerFactory.newInstance();
+            Transformer transformer = transformerFactory.newTransformer();
+
+            // Set output properties for XML declaration
+            transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
+            transformer.setOutputProperty(OutputKeys.VERSION, "1.0");
+            transformer.setOutputProperty(OutputKeys.STANDALONE, "yes");
+            transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+
+            StringWriter writer = new StringWriter();
+            transformer.transform(domSource, new StreamResult(writer));
+
+            return writer.toString();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to convert DOMSource to XML String", e);
+        }
     }
 }
