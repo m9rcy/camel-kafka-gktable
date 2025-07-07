@@ -1,0 +1,229 @@
+package structure
+com.example.common
+ └── config
+     ├── JacksonMapperConfig.java
+     └── CommonSerdeConfig.java
+com.example.sc100
+ └── config
+     ├── Sc100KafkaStreamTopology.java
+     └── Sc100KafkaConfig.java
+com.example.sc102
+ └── config
+     ├── Sc102KafkaStreamTopology.java
+     └── Sc102KafkaConfig.java
+
+Split strategy
+
+@Configuration
+public class JacksonMapperConfig {
+
+    @Bean
+    public ObjectMapper objectMapper() {
+        return new ObjectMapper(); // or customized
+    }
+}
+
+@Configuration
+public class CommonSerdeConfig {
+
+    @Bean
+    public Serde<MyCommonModel> myCommonSerde(ObjectMapper objectMapper) {
+        return new JsonSerde<>(MyCommonModel.class, objectMapper);
+    }
+}
+
+-- No EnableKafkaStream
+@Configuration
+@ConditionalOnProperty(name = "sc100.enable", havingValue = "true")
+public class Sc100KafkaConfig {
+
+    @Bean(name = "sc100KafkaStreamsConfig")
+    public KafkaStreamsConfiguration sc100StreamsConfig() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(StreamsConfig.APPLICATION_ID_CONFIG, "sc100-app");
+        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        return new KafkaStreamsConfiguration(props);
+    }
+
+    @Bean(name = "sc100FactoryBean")
+    public StreamsBuilderFactoryBean sc100FactoryBean(
+            @Qualifier("sc100KafkaStreamsConfig") KafkaStreamsConfiguration config) {
+        return new StreamsBuilderFactoryBean(config);
+    }
+}
+
+@Configuration
+@ConditionalOnProperty(name = "sc100.enable", havingValue = "true")
+public class Sc100KafkaStreamTopology {
+
+    @Bean
+    public KafkaStreams sc100KafkaStreams(@Qualifier("sc100FactoryBean") StreamsBuilderFactoryBean factoryBean) {
+        StreamsBuilder builder = new StreamsBuilder();
+        // define your topology here
+        builder.stream("sc100-topic").mapValues(...);
+        factoryBean.setStreamsBuilder(builder);
+        return new KafkaStreams(builder.build(), factoryBean.getStreamsConfiguration());
+    }
+}
+
+@Configuration
+@EnableKafkaStreams
+public class KafkaStreamsBaseConfig {
+
+    @Bean(name = KafkaStreamsDefaultConfiguration.DEFAULT_STREAMS_CONFIG_BEAN_NAME)
+    public KafkaStreamsConfiguration kafkaStreamsConfig() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(StreamsConfig.APPLICATION_ID_CONFIG, "shared-app-id");
+        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass());
+        props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass());
+        return new KafkaStreamsConfiguration(props);
+    }
+}
+
+@Component
+public class FeatureFlags {
+    @Value("${sc100.enable:false}")
+    private boolean sc100Enabled;
+
+    @Value("${sc102.enable:false}")
+    private boolean sc102Enabled;
+
+    public boolean isSc100Enabled() {
+        return sc100Enabled;
+    }
+
+    public boolean isSc102Enabled() {
+        return sc102Enabled;
+    }
+}
+
+@Configuration
+public class SharedKafkaTopology {
+
+    private final FeatureFlags featureFlags;
+
+    public SharedKafkaTopology(FeatureFlags featureFlags) {
+        this.featureFlags = featureFlags;
+    }
+
+    @Bean
+    public KStream<String, String> mainStream(StreamsBuilder streamsBuilder) {
+        if (featureFlags.isSc100Enabled()) {
+            buildSc100Topology(streamsBuilder);
+        }
+
+        if (featureFlags.isSc102Enabled()) {
+            buildSc102Topology(streamsBuilder);
+        }
+
+        return streamsBuilder.stream("some-default-topic"); // optional root stream
+    }
+
+    private void buildSc100Topology(StreamsBuilder builder) {
+        builder.stream("sc100-input-topic")
+               .mapValues(value -> "Processed by SC100: " + value)
+               .to("sc100-output-topic");
+    }
+
+    private void buildSc102Topology(StreamsBuilder builder) {
+        builder.stream("sc102-input-topic")
+               .mapValues(value -> "Processed by SC102: " + value)
+               .to("sc102-output-topic");
+    }
+}
+
+--- Modular plugin
+
+package com.example.common.kafka;
+
+import org.apache.kafka.streams.StreamsBuilder;
+
+public interface KafkaTopologyContributor {
+    void contribute(StreamsBuilder builder);
+}
+
+@Configuration
+@ConditionalOnExpression("${sc100.enable:false} or ${sc102.enable:false}")
+@EnableKafkaStreams
+public class KafkaStreamsBaseConfig {
+
+    @Bean(name = KafkaStreamsDefaultConfiguration.DEFAULT_STREAMS_CONFIG_BEAN_NAME)
+    public KafkaStreamsConfiguration kafkaStreamsConfiguration() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(StreamsConfig.APPLICATION_ID_CONFIG, "shared-app-id");
+        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass());
+        props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass());
+        return new KafkaStreamsConfiguration(props);
+    }
+}
+
+@Configuration
+@ConditionalOnExpression("${sc100.enable:false} or ${sc102.enable:false}")
+public class SharedKafkaTopology {
+
+    private final List<KafkaTopologyContributor> contributors;
+
+    public SharedKafkaTopology(List<KafkaTopologyContributor> contributors) {
+        this.contributors = contributors;
+    }
+
+    @Bean
+    public KStream<String, String> buildTopology(StreamsBuilder streamsBuilder) {
+        for (KafkaTopologyContributor contributor : contributors) {
+            contributor.contribute(streamsBuilder);
+        }
+        // You can optionally return a KStream, but not required unless used.
+        return null;
+    }
+}
+
+package com.example.sc100.kafka;
+
+import com.example.common.kafka.KafkaTopologyContributor;
+import org.apache.kafka.streams.StreamsBuilder;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
+
+@Component
+@ConditionalOnProperty(name = "sc100.enable", havingValue = "true")
+public class Sc100TopologyContributor implements KafkaTopologyContributor {
+
+    @Override
+    public void contribute(StreamsBuilder builder) {
+        builder.stream("sc100-input")
+               .mapValues(value -> "Processed by SC100: " + value)
+               .to("sc100-output");
+    }
+}
+
+
+-- with property binding
+
+@Configuration
+@ConditionalOnExpression("${sc100.enable:false} or ${sc102.enable:false}")
+@EnableKafkaStreams
+public class KafkaStreamsBaseConfig {
+
+    private final KafkaProperties kafkaProperties;
+
+    public KafkaStreamsBaseConfig(KafkaProperties kafkaProperties) {
+        this.kafkaProperties = kafkaProperties;
+    }
+
+    @Bean(name = KafkaStreamsDefaultConfiguration.DEFAULT_STREAMS_CONFIG_BEAN_NAME)
+    public KafkaStreamsConfiguration kafkaStreamsConfiguration() {
+        Map<String, Object> props = new HashMap<>();
+
+        // Populate default Spring Kafka properties
+        props.putAll(kafkaProperties.buildStreamsProperties());
+
+        // Optionally override or add more
+        props.put(StreamsConfig.APPLICATION_ID_CONFIG, "shared-app-id");
+
+        return new KafkaStreamsConfiguration(props);
+    }
+}
+
+
