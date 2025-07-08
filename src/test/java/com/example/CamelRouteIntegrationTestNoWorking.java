@@ -3,8 +3,8 @@ package com.example;
 import com.example.model.OrderStatus;
 import com.example.model.OrderWindow;
 import com.example.processor.OrderWindowConversionProcessor;
-import com.example.processor.OrderWindowDataExtractorProcessor;
-import com.example.processor.OrderWindowTombstoneProcessor;
+import com.example.processor.OrderWindowDataExtractorOldProcessor;
+import com.example.processor.OrderWindowTombstoneOldProcessor;
 import org.apache.camel.CamelContext;
 import org.apache.camel.EndpointInject;
 import org.apache.camel.Produce;
@@ -39,13 +39,13 @@ class CamelRouteIntegrationTestNoWorking extends BaseIntegrationTest {
     private MockEndpoint mockEndpoint;
     
     @MockBean
-    private OrderWindowDataExtractorProcessor orderWindowDataExtractorProcessor;
+    private OrderWindowDataExtractorOldProcessor orderWindowDataExtractorOldProcessor;
     
     @MockBean
     private OrderWindowConversionProcessor xmlProcessor;
     
     @MockBean
-    private OrderWindowTombstoneProcessor orderWindowTombstoneProcessor;
+    private OrderWindowTombstoneOldProcessor orderWindowTombstoneOldProcessor;
     
     @MockBean
     private KafkaTopicConfig kafkaTopicConfig;
@@ -57,7 +57,7 @@ class CamelRouteIntegrationTestNoWorking extends BaseIntegrationTest {
             @Override
             public void configure() throws Exception {
                 from("direct:test-data-extractor")
-                    .process(orderWindowDataExtractorProcessor)
+                    .process(orderWindowDataExtractorOldProcessor)
                     .choice()
                         .when(header("dataExtractCount").isGreaterThan(0))
                             .process(xmlProcessor)
@@ -66,7 +66,7 @@ class CamelRouteIntegrationTestNoWorking extends BaseIntegrationTest {
                     .to("mock:result");
                 
                 from("direct:test-tombstone-cleanup")
-                    .process(orderWindowTombstoneProcessor)
+                    .process(orderWindowTombstoneOldProcessor)
                     .choice()
                         .when(header("tombstoneCount").isGreaterThan(0))
                             .split(body())
@@ -101,7 +101,7 @@ class CamelRouteIntegrationTestNoWorking extends BaseIntegrationTest {
             exchange.getMessage().setBody(testData);
             exchange.getMessage().setHeader("dataExtractCount", testData.size());
             return null;
-        }).when(orderWindowDataExtractorProcessor).process(any());
+        }).when(orderWindowDataExtractorOldProcessor).process(any());
         
         doAnswer(invocation -> {
             org.apache.camel.Exchange exchange = invocation.getArgument(0);
@@ -117,7 +117,7 @@ class CamelRouteIntegrationTestNoWorking extends BaseIntegrationTest {
         
         // Then
         mockEndpoint.assertIsSatisfied();
-        verify(orderWindowDataExtractorProcessor).process(any());
+        verify(orderWindowDataExtractorOldProcessor).process(any());
         verify(xmlProcessor).process(any());
     }
     
@@ -132,7 +132,7 @@ class CamelRouteIntegrationTestNoWorking extends BaseIntegrationTest {
             exchange.getMessage().setBody(Collections.emptyList());
             exchange.getMessage().setHeader("dataExtractCount", 0);
             return null;
-        }).when(orderWindowDataExtractorProcessor).process(any());
+        }).when(orderWindowDataExtractorOldProcessor).process(any());
         
         mockEndpoint.expectedMessageCount(1);
         mockEndpoint.expectedHeaderReceived("dataExtractCount", 0);
@@ -142,7 +142,7 @@ class CamelRouteIntegrationTestNoWorking extends BaseIntegrationTest {
         
         // Then
         mockEndpoint.assertIsSatisfied();
-        verify(orderWindowDataExtractorProcessor, atLeastOnce()).process(any());
+        verify(orderWindowDataExtractorOldProcessor, atLeastOnce()).process(any());
         verify(xmlProcessor, never()).process(any());
     }
     
@@ -159,7 +159,7 @@ class CamelRouteIntegrationTestNoWorking extends BaseIntegrationTest {
             exchange.getMessage().setBody(keysToTombstone);
             exchange.getMessage().setHeader("tombstoneCount", keysToTombstone.size());
             return null;
-        }).when(orderWindowTombstoneProcessor).process(any());
+        }).when(orderWindowTombstoneOldProcessor).process(any());
         
         when(kafkaTopicConfig.getOrderWindowFilteredTopic()).thenReturn("test-filtered-topic");
         
@@ -170,7 +170,7 @@ class CamelRouteIntegrationTestNoWorking extends BaseIntegrationTest {
         
         // Then
         mockEndpoint.assertIsSatisfied();
-        verify(orderWindowTombstoneProcessor, atLeastOnce()).process(any());
+        verify(orderWindowTombstoneOldProcessor, atLeastOnce()).process(any());
         
         // Verify that the messages have the expected Kafka key headers
         List<org.apache.camel.Exchange> exchanges = mockEndpoint.getExchanges();

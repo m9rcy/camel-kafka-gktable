@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class OrderWindowTombstoneProcessorTest {
+class OrderWindowTombstoneOldProcessorTest {
 
     @Mock
     private KafkaStateStoreService kafkaStateStoreService;
@@ -37,12 +37,12 @@ class OrderWindowTombstoneProcessorTest {
     @Mock
     private KeyValueIterator<String, OrderWindow> iterator;
 
-    private OrderWindowTombstoneProcessor processor;
+    private OrderWindowTombstoneOldProcessor processor;
     private Exchange exchange;
 
     @BeforeEach
     void setUp() {
-        processor = new OrderWindowTombstoneProcessor(kafkaStateStoreService, orderWindowGlobalKTable);
+        processor = new OrderWindowTombstoneOldProcessor(kafkaStateStoreService, orderWindowGlobalKTable);
         exchange = new DefaultExchange(new DefaultCamelContext());
     }
 

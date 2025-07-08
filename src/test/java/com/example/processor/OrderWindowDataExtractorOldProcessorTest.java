@@ -4,7 +4,6 @@ import com.example.model.OrderStatus;
 import com.example.model.OrderWindow;
 import com.example.service.KafkaStateStoreService;
 import org.apache.camel.Exchange;
-import org.apache.camel.Message;
 import org.apache.camel.impl.DefaultCamelContext;
 import org.apache.camel.support.DefaultExchange;
 import org.apache.kafka.streams.KeyValue;
@@ -23,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class OrderWindowDataExtractorProcessorTest {
+class OrderWindowDataExtractorOldProcessorTest {
 
     @Mock
     private KafkaStateStoreService kafkaStateStoreService;
@@ -37,12 +36,12 @@ class OrderWindowDataExtractorProcessorTest {
     @Mock
     private KeyValueIterator<String, OrderWindow> iterator;
 
-    private OrderWindowDataExtractorProcessor processor;
+    private OrderWindowDataExtractorOldProcessor processor;
     private Exchange exchange;
 
     @BeforeEach
     void setUp() {
-        processor = new OrderWindowDataExtractorProcessor(kafkaStateStoreService, orderWindowGlobalKTable);
+        processor = new OrderWindowDataExtractorOldProcessor(kafkaStateStoreService, orderWindowGlobalKTable);
         exchange = new DefaultExchange(new DefaultCamelContext());
     }
 

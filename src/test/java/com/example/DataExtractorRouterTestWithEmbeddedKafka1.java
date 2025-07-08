@@ -3,8 +3,8 @@ package com.example;
 import com.example.model.OrderStatus;
 import com.example.model.OrderWindow;
 import com.example.processor.OrderWindowConversionProcessor;
-import com.example.processor.OrderWindowDataExtractorProcessor;
-import com.example.processor.OrderWindowTombstoneProcessor;
+import com.example.processor.OrderWindowDataExtractorOldProcessor;
+import com.example.processor.OrderWindowTombstoneOldProcessor;
 import com.example.service.KafkaStateStoreService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.camel.CamelContext;
@@ -77,13 +77,13 @@ class DataExtractorRouterTestWithEmbeddedKafka1 {
     private GlobalKTable<String, OrderWindow> orderWindowGlobalKTable;
 
     @MockBean
-    private OrderWindowDataExtractorProcessor orderWindowDataExtractorProcessor;
+    private OrderWindowDataExtractorOldProcessor orderWindowDataExtractorOldProcessor;
 
     @MockBean
     private OrderWindowConversionProcessor xmlProcessor;
 
     @MockBean
-    private OrderWindowTombstoneProcessor orderWindowTombstoneProcessor;
+    private OrderWindowTombstoneOldProcessor orderWindowTombstoneOldProcessor;
 
     @Autowired
     private KafkaTopicConfig kafkaTopicConfig;
@@ -121,7 +121,7 @@ class DataExtractorRouterTestWithEmbeddedKafka1 {
             exchange.getMessage().setBody(mockGlobalKTableData);
             exchange.getMessage().setHeader("dataExtractCount", mockGlobalKTableData.size());
             return null;
-        }).when(orderWindowDataExtractorProcessor).process(any());
+        }).when(orderWindowDataExtractorOldProcessor).process(any());
 
         // Mock the XML processor to generate XML
         doAnswer(invocation -> {
@@ -160,7 +160,7 @@ class DataExtractorRouterTestWithEmbeddedKafka1 {
         assertTrue(generatedXml.contains("<status>APPROVED</status>"), "XML should contain APPROVED status");
         assertTrue(generatedXml.contains("<status>RELEASED</status>"), "XML should contain RELEASED status");
 
-        verify(orderWindowDataExtractorProcessor).process(any());
+        verify(orderWindowDataExtractorOldProcessor).process(any());
         verify(xmlProcessor).process(any());
     }
 
@@ -179,7 +179,7 @@ class DataExtractorRouterTestWithEmbeddedKafka1 {
             exchange.getMessage().setBody(mockGlobalKTableDataAfterTombstone);
             exchange.getMessage().setHeader("dataExtractCount", mockGlobalKTableDataAfterTombstone.size());
             return null;
-        }).when(orderWindowDataExtractorProcessor).process(any());
+        }).when(orderWindowDataExtractorOldProcessor).process(any());
 
         // Mock the XML processor
         doAnswer(invocation -> {
@@ -215,7 +215,7 @@ class DataExtractorRouterTestWithEmbeddedKafka1 {
         // Verify tombstoned event is excluded
         assertFalse(generatedXml.contains("<id>order2</id>"), "XML should NOT contain tombstoned order2");
 
-        verify(orderWindowDataExtractorProcessor).process(any());
+        verify(orderWindowDataExtractorOldProcessor).process(any());
         verify(xmlProcessor).process(any());
     }
 
@@ -229,7 +229,7 @@ class DataExtractorRouterTestWithEmbeddedKafka1 {
             exchange.getMessage().setBody(keysToTombstone);
             exchange.getMessage().setHeader("tombstoneCount", keysToTombstone.size());
             return null;
-        }).when(orderWindowTombstoneProcessor).process(any());
+        }).when(orderWindowTombstoneOldProcessor).process(any());
 
         // Use AdviceWith to modify the tombstone route to use embedded Kafka
         AdviceWith.adviceWith(camelContext, "orderWindowTombstoneCleanup", a -> {
@@ -263,7 +263,7 @@ class DataExtractorRouterTestWithEmbeddedKafka1 {
             }
         });
 
-        verify(orderWindowTombstoneProcessor).process(any());
+        verify(orderWindowTombstoneOldProcessor).process(any());
     }
 
     @Test
@@ -274,7 +274,7 @@ class DataExtractorRouterTestWithEmbeddedKafka1 {
             exchange.getMessage().setBody(Collections.emptyList());
             exchange.getMessage().setHeader("dataExtractCount", 0);
             return null;
-        }).when(orderWindowDataExtractorProcessor).process(any());
+        }).when(orderWindowDataExtractorOldProcessor).process(any());
 
         // Use AdviceWith to modify the route
         AdviceWith.adviceWith(camelContext, "orderWindowConsumer", a -> {
@@ -294,7 +294,7 @@ class DataExtractorRouterTestWithEmbeddedKafka1 {
         // Then
         noDataResult.assertIsSatisfied(5000);
 
-        verify(orderWindowDataExtractorProcessor).process(any());
+        verify(orderWindowDataExtractorOldProcessor).process(any());
         verify(xmlProcessor, never()).process(any()); // Should not process XML when no data
     }
 
@@ -312,7 +312,7 @@ class DataExtractorRouterTestWithEmbeddedKafka1 {
             exchange.getMessage().setBody(testData);
             exchange.getMessage().setHeader("dataExtractCount", 1);
             return null;
-        }).when(orderWindowDataExtractorProcessor).process(any());
+        }).when(orderWindowDataExtractorOldProcessor).process(any());
 
         doAnswer(invocation -> {
             Exchange exchange = invocation.getArgument(0);
@@ -345,7 +345,7 @@ class DataExtractorRouterTestWithEmbeddedKafka1 {
         String result = finalResult.getReceivedExchanges().get(0).getMessage().getBody(String.class);
         assertTrue(result.contains("<id>test-order</id>"));
 
-        verify(orderWindowDataExtractorProcessor).process(any());
+        verify(orderWindowDataExtractorOldProcessor).process(any());
         verify(xmlProcessor).process(any());
     }
 
@@ -370,7 +370,7 @@ class DataExtractorRouterTestWithEmbeddedKafka1 {
             exchange.getMessage().setBody(initialData);
             exchange.getMessage().setHeader("dataExtractCount", initialData.size());
             return null;
-        }).when(orderWindowDataExtractorProcessor).process(any());
+        }).when(orderWindowDataExtractorOldProcessor).process(any());
 
         doAnswer(invocation -> {
             Exchange exchange = invocation.getArgument(0);
@@ -418,7 +418,7 @@ class DataExtractorRouterTestWithEmbeddedKafka1 {
             exchange.getMessage().setBody(dataAfterTombstone);
             exchange.getMessage().setHeader("dataExtractCount", dataAfterTombstone.size());
             return null;
-        }).when(orderWindowDataExtractorProcessor).process(any());
+        }).when(orderWindowDataExtractorOldProcessor).process(any());
 
         // When - Second extraction (after tombstone)
         camelContext.createProducerTemplate().sendBody("direct:test-workflow", "trigger");

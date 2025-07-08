@@ -2,14 +2,9 @@ package com.example.processor;
 
 import com.example.model.OrderWindow;
 import com.example.service.KafkaStateStoreService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.camel.Exchange;
-import org.apache.camel.Processor;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.kstream.GlobalKTable;
-import org.apache.kafka.streams.state.KeyValueIterator;
-import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -19,30 +14,36 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-@RequiredArgsConstructor
+/**
+ * Processor that extracts data from GlobalKTable and returns the latest version
+ * of each order (deduplication by ID, keeping highest version).
+ */
 @Component
 @Slf4j
-public class OrderWindowDataExtractorProcessor implements Processor {
+public class OrderWindowDataExtractorProcessor extends BaseGlobalKTableProcessor<OrderWindow> {
 
-    private final KafkaStateStoreService kafkaStateStoreService;
-    private final GlobalKTable<String, OrderWindow> orderWindowGlobalKTable;
+    public OrderWindowDataExtractorProcessor(
+            KafkaStateStoreService kafkaStateStoreService,
+            GlobalKTable<String, OrderWindow> orderWindowGlobalKTable) {
+        super(kafkaStateStoreService, orderWindowGlobalKTable);
+    }
+
     @Override
-    public void process(Exchange exchange) throws Exception {
-        ReadOnlyKeyValueStore<String, OrderWindow> store = kafkaStateStoreService.getStoreFor(orderWindowGlobalKTable);
-        List<OrderWindow> orderWindowList = new ArrayList<>();
+    protected boolean shouldIncludeEntry(KeyValue<String, OrderWindow> entry) {
+        // Include all non-null OrderWindow entries
+        return entry.value != null;
+    }
 
-        // Iterate through all key-value pairs in the store
-        try (KeyValueIterator<String, OrderWindow> iterator = store.all()) {
-            while (iterator.hasNext()) {
-                KeyValue<String, OrderWindow> entry = iterator.next();
-                if (entry.value != null) {
-                    orderWindowList.add(entry.value);
-                }
-            }
-        }
+    @Override
+    protected OrderWindow transformEntry(KeyValue<String, OrderWindow> entry) {
+        // Return the OrderWindow as-is, deduplication happens in post-processing
+        return entry.value;
+    }
 
-        // Group by id and select the record with the highest version for each id
-        Map<String, OrderWindow> latestVersions = orderWindowList.stream()
+    @Override
+    protected List<OrderWindow> postProcess(List<OrderWindow> results) {
+        // Group by ID and select the record with the highest version for each ID
+        Map<String, OrderWindow> latestVersions = results.stream()
                 .filter(Objects::nonNull)
                 .collect(Collectors.toMap(
                         OrderWindow::getId,
@@ -51,11 +52,16 @@ public class OrderWindowDataExtractorProcessor implements Processor {
                                 existing.getVersion() > replacement.getVersion() ? existing : replacement
                 ));
 
-        // Convert the map values back to a list
         List<OrderWindow> result = new ArrayList<>(latestVersions.values());
 
-        log.info("Found {} records to extract", result.size());
-        exchange.getMessage().setBody(result);
-        exchange.getMessage().setHeader("dataExtractCount", result.size());
+        log.debug("Deduplicated {} raw records to {} unique orders", 
+                results.size(), result.size());
+        
+        return result;
+    }
+
+    @Override
+    protected String getCountHeaderName() {
+        return "dataExtractCount";
     }
 }

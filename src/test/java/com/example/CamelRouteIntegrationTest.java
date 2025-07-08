@@ -3,8 +3,8 @@ package com.example;
 import com.example.model.OrderStatus;
 import com.example.model.OrderWindow;
 import com.example.processor.OrderWindowConversionProcessor;
-import com.example.processor.OrderWindowDataExtractorProcessor;
-import com.example.processor.OrderWindowTombstoneProcessor;
+import com.example.processor.OrderWindowDataExtractorOldProcessor;
+import com.example.processor.OrderWindowTombstoneOldProcessor;
 import com.example.service.KafkaStateStoreService;
 import org.apache.camel.CamelContext;
 import org.apache.camel.EndpointInject;
@@ -58,13 +58,13 @@ class CamelRouteIntegrationTest {
     private GlobalKTable<String, OrderWindow> orderWindowGlobalKTable;
 
     @MockBean
-    private OrderWindowDataExtractorProcessor orderWindowDataExtractorProcessor;
+    private OrderWindowDataExtractorOldProcessor orderWindowDataExtractorOldProcessor;
 
     @MockBean
     private OrderWindowConversionProcessor xmlProcessor;
 
     @MockBean
-    private OrderWindowTombstoneProcessor orderWindowTombstoneProcessor;
+    private OrderWindowTombstoneOldProcessor orderWindowTombstoneOldProcessor;
 
     @MockBean
     private KafkaTopicConfig kafkaTopicConfig;
@@ -89,7 +89,7 @@ class CamelRouteIntegrationTest {
             exchange.getMessage().setBody(testData);
             exchange.getMessage().setHeader("dataExtractCount", testData.size());
             return null;
-        }).when(orderWindowDataExtractorProcessor).process(any());
+        }).when(orderWindowDataExtractorOldProcessor).process(any());
 
         doAnswer(invocation -> {
             org.apache.camel.Exchange exchange = invocation.getArgument(0);
@@ -105,7 +105,7 @@ class CamelRouteIntegrationTest {
 
         // Then
         mockEndpoint.assertIsSatisfied();
-        verify(orderWindowDataExtractorProcessor).process(any());
+        verify(orderWindowDataExtractorOldProcessor).process(any());
         verify(xmlProcessor).process(any());
     }
 
@@ -120,7 +120,7 @@ class CamelRouteIntegrationTest {
             exchange.getMessage().setBody(Collections.emptyList());
             exchange.getMessage().setHeader("dataExtractCount", 0);
             return null;
-        }).when(orderWindowDataExtractorProcessor).process(any());
+        }).when(orderWindowDataExtractorOldProcessor).process(any());
 
         mockEndpoint.expectedMessageCount(1);
         mockEndpoint.expectedHeaderReceived("dataExtractCount", 0);
@@ -130,7 +130,7 @@ class CamelRouteIntegrationTest {
 
         // Then
         mockEndpoint.assertIsSatisfied();
-        verify(orderWindowDataExtractorProcessor).process(any());
+        verify(orderWindowDataExtractorOldProcessor).process(any());
         verify(xmlProcessor, never()).process(any());
     }
 
@@ -147,7 +147,7 @@ class CamelRouteIntegrationTest {
             exchange.getMessage().setBody(keysToTombstone);
             exchange.getMessage().setHeader("tombstoneCount", keysToTombstone.size());
             return null;
-        }).when(orderWindowTombstoneProcessor).process(any());
+        }).when(orderWindowTombstoneOldProcessor).process(any());
 
         when(kafkaTopicConfig.getOrderWindowFilteredTopic()).thenReturn("test-filtered-topic");
 
@@ -159,7 +159,7 @@ class CamelRouteIntegrationTest {
 
         // Then
         mockEndpoint.assertIsSatisfied();
-        verify(orderWindowTombstoneProcessor).process(any());
+        verify(orderWindowTombstoneOldProcessor).process(any());
 
         // Verify that the messages have the expected Kafka key headers
         List<org.apache.camel.Exchange> exchanges = mockEndpoint.getExchanges();
@@ -174,8 +174,8 @@ class CamelRouteIntegrationTest {
     static class TestConfiguration {
 
         @Bean("orderWindowDataExtractorProcessor")
-        public OrderWindowDataExtractorProcessor orderWindowDataExtractorProcessor() {
-            return mock(OrderWindowDataExtractorProcessor.class);
+        public OrderWindowDataExtractorOldProcessor orderWindowDataExtractorProcessor() {
+            return mock(OrderWindowDataExtractorOldProcessor.class);
         }
 
         @Bean("xmlProcessor")
@@ -184,8 +184,8 @@ class CamelRouteIntegrationTest {
         }
 
         @Bean("orderWindowTombstoneProcessor")
-        public OrderWindowTombstoneProcessor orderWindowTombstoneProcessor() {
-            return mock(OrderWindowTombstoneProcessor.class);
+        public OrderWindowTombstoneOldProcessor orderWindowTombstoneProcessor() {
+            return mock(OrderWindowTombstoneOldProcessor.class);
         }
 
         @Bean

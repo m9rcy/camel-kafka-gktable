@@ -1,10 +1,8 @@
 package com.example;
 
-import com.example.KafkaStreamsTopologyConfig;
-import com.example.KafkaTopicConfig;
 import com.example.processor.OrderWindowConversionProcessor;
-import com.example.processor.OrderWindowDataExtractorProcessor;
-import com.example.processor.OrderWindowTombstoneProcessor;
+import com.example.processor.OrderWindowDataExtractorOldProcessor;
+import com.example.processor.OrderWindowTombstoneOldProcessor;
 import com.example.service.GlobalKTableMetricsService;
 import com.example.service.KafkaStateStoreService;
 import org.apache.camel.spring.boot.CamelAutoConfiguration;
@@ -62,8 +60,8 @@ public class IntegrationTestConfiguration {
 
     @Bean("orderWindowDataExtractorProcessor")
     @Primary
-    public OrderWindowDataExtractorProcessor orderWindowDataExtractorProcessor() {
-        return mock(OrderWindowDataExtractorProcessor.class);
+    public OrderWindowDataExtractorOldProcessor orderWindowDataExtractorProcessor() {
+        return mock(OrderWindowDataExtractorOldProcessor.class);
     }
 
     @Bean("xmlProcessor")
@@ -74,7 +72,7 @@ public class IntegrationTestConfiguration {
 
     @Bean("orderWindowTombstoneProcessor")
     @Primary
-    public OrderWindowTombstoneProcessor orderWindowTombstoneProcessor() {
-        return mock(OrderWindowTombstoneProcessor.class);
+    public OrderWindowTombstoneOldProcessor orderWindowTombstoneProcessor() {
+        return mock(OrderWindowTombstoneOldProcessor.class);
     }
 }

@@ -2,8 +2,8 @@ package com.example;
 
 import com.example.model.OrderWindow;
 import com.example.processor.OrderWindowConversionProcessor;
-import com.example.processor.OrderWindowDataExtractorProcessor;
-import com.example.processor.OrderWindowTombstoneProcessor;
+import com.example.processor.OrderWindowDataExtractorOldProcessor;
+import com.example.processor.OrderWindowTombstoneOldProcessor;
 import com.example.service.KafkaStateStoreService;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.kafka.streams.kstream.GlobalKTable;
@@ -27,10 +27,10 @@ public class DataExtractorRouter extends RouteBuilder {
     @Autowired
     OrderWindowConversionProcessor xmlProcessor;
     @Autowired
-    OrderWindowTombstoneProcessor orderWindowTombstoneProcessor;
+    OrderWindowTombstoneOldProcessor orderWindowTombstoneOldProcessor;
 
     @Autowired
-    OrderWindowDataExtractorProcessor orderWindowDataExtractorProcessor;
+    OrderWindowDataExtractorOldProcessor orderWindowDataExtractorOldProcessor;
     @Autowired
     private KafkaTopicConfig kafkaTopicConfig;
     
@@ -39,7 +39,7 @@ public class DataExtractorRouter extends RouteBuilder {
         // Existing route for data extraction
         from("timer:orderWindowConsumer?period=3600000;repeat=8").autoStartup(true).routeId("orderWindowConsumer")
                 // Find all data in GTK and filter by null and distinct
-                .process(orderWindowDataExtractorProcessor)
+                .process(orderWindowDataExtractorOldProcessor)
                 .choice()
                     .when(header("dataExtractCount").isGreaterThan(0))
                         .log("Found ${header.dataExtractCount} records to process")
@@ -62,7 +62,7 @@ public class DataExtractorRouter extends RouteBuilder {
         // New tombstone cleanup route - runs daily
         from("timer:orderWindowTombstoneCleanup?period=86400000").autoStartup(true).routeId("orderWindowTombstoneCleanup")
                 .log("Starting tombstone cleanup process...")
-                .process(orderWindowTombstoneProcessor)
+                .process(orderWindowTombstoneOldProcessor)
                 .choice()
                     .when(header("tombstoneCount").isGreaterThan(0))
                         .log("Found ${header.tombstoneCount} records to tombstone")

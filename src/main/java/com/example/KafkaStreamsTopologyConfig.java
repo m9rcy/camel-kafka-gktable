@@ -38,9 +38,9 @@ public class KafkaStreamsTopologyConfig {
         // Filter Order Window Topic for GlobalKTable
         OffsetDateTime twelveDaysAgo = OffsetDateTime.now().minusDays(12);
         inputStream.filter((k, v) -> v == null ||
-                (v.getStatus() == OrderStatus.APPROVED ||
-                        (v.getStatus() == OrderStatus.RELEASED &&
-                                (v.getPlanEndDate().isAfter(twelveDaysAgo) || v.getPlanEndDate().equals(twelveDaysAgo)))))
+                        (v.getStatus() == OrderStatus.APPROVED ||
+                                (v.getStatus() == OrderStatus.RELEASED &&
+                                        (v.getPlanEndDate().isAfter(twelveDaysAgo) || v.getPlanEndDate().equals(twelveDaysAgo)))))
                 .to(kafkaTopicConfig.getOrderWindowFilteredTopic(), Produced.with(Serdes.String(), orderWindowSerde));
 
         return streamsBuilder.globalTable(
@@ -50,7 +50,17 @@ public class KafkaStreamsTopologyConfig {
         );
     }
 
-    private <T> JsonSerde<T> createValueSerde(KafkaProperties kafkaProperties, Class<T> targetType, ObjectMapper objectMapper) {
+    /**
+     * Creates a JsonSerde for the specified type using Spring Boot Kafka properties.
+     * This method is made public to allow reuse in tests.
+     *
+     * @param kafkaProperties Spring Boot Kafka properties
+     * @param targetType The target class type
+     * @param objectMapper Jackson ObjectMapper
+     * @param <T> The type parameter
+     * @return Configured JsonSerde
+     */
+    public <T> JsonSerde<T> createValueSerde(KafkaProperties kafkaProperties, Class<T> targetType, ObjectMapper objectMapper) {
         JavaType javaType = objectMapper.constructType(targetType);
 
         JsonSerializer<T> jsonSerializer = new JsonSerializer<>(javaType, objectMapper);
@@ -60,6 +70,5 @@ public class KafkaStreamsTopologyConfig {
         jsonDeserializer.configure(kafkaProperties.buildConsumerProperties(), false);
 
         return new JsonSerde<>(jsonSerializer, jsonDeserializer);
-
     }
 }

@@ -3,58 +3,57 @@ package com.example.processor;
 import com.example.model.OrderStatus;
 import com.example.model.OrderWindow;
 import com.example.service.KafkaStateStoreService;
-import lombok.RequiredArgsConstructor;
-import org.apache.camel.Exchange;
-import org.apache.camel.Processor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.kstream.GlobalKTable;
-import org.apache.kafka.streams.state.KeyValueIterator;
-import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
 import org.springframework.stereotype.Component;
-import lombok.extern.slf4j.Slf4j;
 
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.function.Predicate;
 
-@RequiredArgsConstructor
+/**
+ * Processor that identifies keys eligible for tombstone cleanup.
+ * Finds RELEASED orders with planEndDate older than 13 days.
+ */
 @Component
 @Slf4j
-public class OrderWindowTombstoneProcessor implements Processor {
+public class OrderWindowTombstoneProcessor extends BaseGlobalKTableProcessor<String> {
 
-    private final KafkaStateStoreService kafkaStateStoreService;
-    private final GlobalKTable<String, OrderWindow> orderWindowGlobalKTable;
+    private static final int TOMBSTONE_THRESHOLD_DAYS = 13;
+
+    public OrderWindowTombstoneProcessor(
+            KafkaStateStoreService kafkaStateStoreService,
+            GlobalKTable<String, OrderWindow> orderWindowGlobalKTable) {
+        super(kafkaStateStoreService, orderWindowGlobalKTable);
+    }
 
     @Override
-    public void process(Exchange exchange) throws Exception {
-        ReadOnlyKeyValueStore<String, OrderWindow> store = kafkaStateStoreService.getStoreFor(orderWindowGlobalKTable);
-        List<String> keysToTombstone = new ArrayList<>();
-        OffsetDateTime thirteenDaysAgo = OffsetDateTime.now().minusDays(13);
+    protected boolean shouldIncludeEntry(KeyValue<String, OrderWindow> entry) {
+        OffsetDateTime cutoffDate = OffsetDateTime.now().minusDays(TOMBSTONE_THRESHOLD_DAYS);
         
-        log.info("Starting tombstone cleanup process. Cutoff date: {}", thirteenDaysAgo);
+        // Create predicate for tombstone eligibility
+        Predicate<OrderWindow> isTombstoneEligible = 
+                OrderWindowPredicates.isReleased()
+                .and(OrderWindowPredicates.endDateBefore(cutoffDate));
         
-        // Iterate through all key-value pairs in the store
-        try (KeyValueIterator<String, OrderWindow> iterator = store.all()) {
-            while (iterator.hasNext()) {
-                KeyValue<String, OrderWindow> entry = iterator.next();
-                OrderWindow orderWindow = entry.value;
-                
-                if (shouldTombstone(orderWindow, thirteenDaysAgo)) {
-                    keysToTombstone.add(entry.key);
-                    log.info("Marking key {} for tombstone - Status: {}, EndDate: {}", 
-                            entry.key, orderWindow.getStatus(), orderWindow.getPlanEndDate());
-                }
-            }
+        boolean eligible = isTombstoneEligible.test(entry.value);
+        
+        if (eligible) {
+            log.debug("Marking key {} for tombstone - Status: {}, EndDate: {}", 
+                    entry.key, entry.value.getStatus(), entry.value.getPlanEndDate());
         }
         
-        log.info("Found {} records to tombstone", keysToTombstone.size());
-        exchange.getMessage().setBody(keysToTombstone);
-        exchange.getMessage().setHeader("tombstoneCount", keysToTombstone.size());
+        return eligible;
     }
-    
-    private boolean shouldTombstone(OrderWindow orderWindow, OffsetDateTime thirteenDaysAgo) {
-        return orderWindow != null && 
-               orderWindow.getStatus() == OrderStatus.RELEASED &&
-               orderWindow.getPlanEndDate().isBefore(thirteenDaysAgo);
+
+    @Override
+    protected String transformEntry(KeyValue<String, OrderWindow> entry) {
+        // Return the key for tombstone cleanup
+        return entry.key;
+    }
+
+    @Override
+    protected String getCountHeaderName() {
+        return "tombstoneCount";
     }
 }
