@@ -2,6 +2,7 @@ package com.example.processor;
 
 import com.example.model.OrderWindow;
 import com.example.service.KafkaStateStoreService;
+import com.example.service.OrderWindowPredicateService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
@@ -13,11 +14,10 @@ import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
- * Base processor for operations on GlobalKTable data.
+ * Base processor for operations on GlobalKTable data using reusable predicates.
  * Provides common functionality for iterating through GlobalKTable entries
  * and applying filters and transformations.
  *
@@ -29,6 +29,7 @@ public abstract class BaseGlobalKTableProcessor<T> implements Processor {
 
     protected final KafkaStateStoreService kafkaStateStoreService;
     protected final GlobalKTable<String, OrderWindow> orderWindowGlobalKTable;
+    protected final OrderWindowPredicateService predicateService;
 
     @Override
     public void process(Exchange exchange) throws Exception {
@@ -37,13 +38,16 @@ public abstract class BaseGlobalKTableProcessor<T> implements Processor {
         
         log.debug("Starting {} process", this.getClass().getSimpleName());
         
+        // Get the predicate for this processor
+        Predicate<OrderWindow> filterPredicate = getFilterPredicate();
+        
         // Iterate through all key-value pairs in the store
         try (KeyValueIterator<String, OrderWindow> iterator = store.all()) {
             while (iterator.hasNext()) {
                 KeyValue<String, OrderWindow> entry = iterator.next();
                 
                 // Skip null values (tombstones in store are handled by Kafka)
-                if (entry.value != null && shouldIncludeEntry(entry)) {
+                if (entry.value != null && filterPredicate.test(entry.value)) {
                     T result = transformEntry(entry);
                     if (result != null) {
                         results.add(result);
@@ -61,13 +65,13 @@ public abstract class BaseGlobalKTableProcessor<T> implements Processor {
     }
 
     /**
-     * Determines whether a GlobalKTable entry should be included in processing.
-     * Subclasses should implement this to define their filtering logic.
+     * Returns the predicate to use for filtering records.
+     * Subclasses should implement this to define their filtering logic using
+     * the predicateService.
      *
-     * @param entry The key-value entry from the GlobalKTable
-     * @return true if the entry should be processed, false otherwise
+     * @return The predicate to use for filtering
      */
-    protected abstract boolean shouldIncludeEntry(KeyValue<String, OrderWindow> entry);
+    protected abstract Predicate<OrderWindow> getFilterPredicate();
 
     /**
      * Transforms a GlobalKTable entry into the desired result type.
@@ -99,34 +103,9 @@ public abstract class BaseGlobalKTableProcessor<T> implements Processor {
     protected abstract String getCountHeaderName();
 
     /**
-     * Convenience method for creating predicates based on OrderWindow properties.
-     * Can be used by subclasses to build complex filtering logic.
+     * Logs predicate evaluation for debugging
      */
-    protected static class OrderWindowPredicates {
-        
-        public static Predicate<OrderWindow> hasStatus(com.example.model.OrderStatus status) {
-            return orderWindow -> orderWindow.getStatus() == status;
-        }
-        
-        public static Predicate<OrderWindow> endDateBefore(java.time.OffsetDateTime date) {
-            return orderWindow -> orderWindow.getPlanEndDate().isBefore(date);
-        }
-        
-        public static Predicate<OrderWindow> endDateAfter(java.time.OffsetDateTime date) {
-            return orderWindow -> orderWindow.getPlanEndDate().isAfter(date);
-        }
-        
-        public static Predicate<OrderWindow> endDateBeforeOrEqual(java.time.OffsetDateTime date) {
-            return orderWindow -> orderWindow.getPlanEndDate().isBefore(date) || 
-                                 orderWindow.getPlanEndDate().equals(date);
-        }
-        
-        public static Predicate<OrderWindow> isReleased() {
-            return hasStatus(com.example.model.OrderStatus.RELEASED);
-        }
-        
-        public static Predicate<OrderWindow> isApproved() {
-            return hasStatus(com.example.model.OrderStatus.APPROVED);
-        }
+    protected void logPredicateEvaluation(String predicateName, OrderWindow orderWindow, boolean result) {
+        predicateService.logPredicateLogic(predicateName, orderWindow, result);
     }
 }
