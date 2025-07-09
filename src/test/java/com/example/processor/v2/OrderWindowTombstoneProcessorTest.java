@@ -2,6 +2,7 @@ package com.example.processor.v2;
 
 import com.example.model.OrderStatus;
 import com.example.model.OrderWindow;
+import com.example.processor.OrderWindowTombstoneProcessor;
 import com.example.service.GlobalKTableQueryService;
 import org.apache.camel.Exchange;
 import org.apache.camel.impl.DefaultCamelContext;
@@ -28,12 +29,12 @@ class OrderWindowTombstoneProcessorTest {
     @Mock
     private GlobalKTableQueryService globalKTableQueryService;
 
-    private OrderWindowTombstoneProcessor processor;
+    private OrderWindowTombstoneFinalProcessor processor;
     private Exchange exchange;
 
     @BeforeEach
     void setUp() {
-        processor = new OrderWindowTombstoneProcessor(globalKTableQueryService);
+        processor = new OrderWindowTombstoneFinalProcessor(globalKTableQueryService);
         exchange = new DefaultExchange(new DefaultCamelContext());
     }
 

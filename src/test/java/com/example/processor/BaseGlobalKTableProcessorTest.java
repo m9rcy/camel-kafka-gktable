@@ -3,6 +3,7 @@ package com.example.processor;
 import com.example.model.OrderStatus;
 import com.example.model.OrderWindow;
 import com.example.service.KafkaStateStoreService;
+import com.example.service.OrderWindowPredicateService;
 import org.apache.camel.Exchange;
 import org.apache.camel.impl.DefaultCamelContext;
 import org.apache.camel.support.DefaultExchange;
@@ -18,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -37,20 +39,27 @@ class BaseGlobalKTableProcessorTest {
     @Mock
     private KeyValueIterator<String, OrderWindow> iterator;
 
+    @Mock
+    private OrderWindowPredicateService predicateService;
+
     private Exchange exchange;
 
     // Test implementation of BaseGlobalKTableProcessor
     private static class TestProcessor extends BaseGlobalKTableProcessor<String> {
 
+        private final OrderWindowPredicateService predicateService;
+
         public TestProcessor(KafkaStateStoreService kafkaStateStoreService,
-                           GlobalKTable<String, OrderWindow> orderWindowGlobalKTable) {
-            super(kafkaStateStoreService, orderWindowGlobalKTable);
+                             GlobalKTable<String, OrderWindow> orderWindowGlobalKTable,
+                             OrderWindowPredicateService predicateService) {
+            super(kafkaStateStoreService, orderWindowGlobalKTable, predicateService);
+            this.predicateService = predicateService;
         }
 
         @Override
-        protected boolean shouldIncludeEntry(KeyValue<String, OrderWindow> entry) {
+        protected Predicate<OrderWindow> getFilterPredicate() {
             // Only include APPROVED orders for testing
-            return entry.value.getStatus() == OrderStatus.APPROVED;
+            return predicateService.isApproved();
         }
 
         @Override
@@ -69,7 +78,7 @@ class BaseGlobalKTableProcessorTest {
 
     @BeforeEach
     void setUp() {
-        processor = new TestProcessor(kafkaStateStoreService, orderWindowGlobalKTable);
+        processor = new TestProcessor(kafkaStateStoreService, orderWindowGlobalKTable, predicateService);
         exchange = new DefaultExchange(new DefaultCamelContext());
     }
 
@@ -95,6 +104,9 @@ class BaseGlobalKTableProcessorTest {
         KeyValue<String, OrderWindow> kv2 = new KeyValue<>("key2", releasedOrder);
         KeyValue<String, OrderWindow> kv3 = new KeyValue<>("key3", draftOrder);
 
+        // Mock the predicate service to return APPROVED predicate
+        when(predicateService.isApproved()).thenReturn(order -> order.getStatus() == OrderStatus.APPROVED);
+
         when(kafkaStateStoreService.getStoreFor(orderWindowGlobalKTable)).thenReturn(store);
         when(store.all()).thenReturn(iterator);
         when(iterator.hasNext()).thenReturn(true, true, true, false);
@@ -111,6 +123,7 @@ class BaseGlobalKTableProcessorTest {
         assertEquals(1, exchange.getMessage().getHeader("testCount"));
 
         verify(iterator).close();
+        verify(predicateService).isApproved();
     }
 
     @Test
@@ -123,6 +136,9 @@ class BaseGlobalKTableProcessorTest {
 
         KeyValue<String, OrderWindow> kv1 = new KeyValue<>("key1", approvedOrder);
         KeyValue<String, OrderWindow> kv2 = new KeyValue<>("key2", null);
+
+        // Mock the predicate service
+        when(predicateService.isApproved()).thenReturn(order -> order.getStatus() == OrderStatus.APPROVED);
 
         when(kafkaStateStoreService.getStoreFor(orderWindowGlobalKTable)).thenReturn(store);
         when(store.all()).thenReturn(iterator);
@@ -145,6 +161,7 @@ class BaseGlobalKTableProcessorTest {
     @Test
     void testProcessWithEmptyStore() throws Exception {
         // Given
+        when(predicateService.isApproved()).thenReturn(order -> order.getStatus() == OrderStatus.APPROVED);
         when(kafkaStateStoreService.getStoreFor(orderWindowGlobalKTable)).thenReturn(store);
         when(store.all()).thenReturn(iterator);
         when(iterator.hasNext()).thenReturn(false);
@@ -162,10 +179,10 @@ class BaseGlobalKTableProcessorTest {
     }
 
     @Test
-    void testOrderWindowPredicates() {
+    void testOrderWindowPredicatesFromService() {
         // Given
         OffsetDateTime testDate = OffsetDateTime.now().minusDays(5);
-        
+
         OrderWindow approvedOrder = OrderWindow.builder()
                 .status(OrderStatus.APPROVED)
                 .planEndDate(testDate.minusDays(1))
@@ -176,25 +193,61 @@ class BaseGlobalKTableProcessorTest {
                 .planEndDate(testDate.plusDays(1))
                 .build();
 
+        // Mock the predicate service methods
+        when(predicateService.isApproved()).thenReturn(order -> order.getStatus() == OrderStatus.APPROVED);
+        when(predicateService.isReleased()).thenReturn(order -> order.getStatus() == OrderStatus.RELEASED);
+        when(predicateService.endDateBefore(testDate)).thenReturn(order -> order.getPlanEndDate().isBefore(testDate));
+        when(predicateService.endDateAfter(testDate)).thenReturn(order -> order.getPlanEndDate().isAfter(testDate));
+
         // When & Then
-        assertTrue(BaseGlobalKTableProcessor.OrderWindowPredicates
-                .isApproved().test(approvedOrder));
-        assertFalse(BaseGlobalKTableProcessor.OrderWindowPredicates
-                .isApproved().test(releasedOrder));
+        assertTrue(predicateService.isApproved().test(approvedOrder));
+        assertFalse(predicateService.isApproved().test(releasedOrder));
 
-        assertTrue(BaseGlobalKTableProcessor.OrderWindowPredicates
-                .isReleased().test(releasedOrder));
-        assertFalse(BaseGlobalKTableProcessor.OrderWindowPredicates
-                .isReleased().test(approvedOrder));
+        assertTrue(predicateService.isReleased().test(releasedOrder));
+        assertFalse(predicateService.isReleased().test(approvedOrder));
 
-        assertTrue(BaseGlobalKTableProcessor.OrderWindowPredicates
-                .endDateBefore(testDate).test(approvedOrder));
-        assertFalse(BaseGlobalKTableProcessor.OrderWindowPredicates
-                .endDateBefore(testDate).test(releasedOrder));
+        assertTrue(predicateService.endDateBefore(testDate).test(approvedOrder));
+        assertFalse(predicateService.endDateBefore(testDate).test(releasedOrder));
 
-        assertTrue(BaseGlobalKTableProcessor.OrderWindowPredicates
-                .endDateAfter(testDate).test(releasedOrder));
-        assertFalse(BaseGlobalKTableProcessor.OrderWindowPredicates
-                .endDateAfter(testDate).test(approvedOrder));
+        assertTrue(predicateService.endDateAfter(testDate).test(releasedOrder));
+        assertFalse(predicateService.endDateAfter(testDate).test(approvedOrder));
+    }
+
+    @Test
+    void testPredicateServiceIntegration() throws Exception {
+        // Given
+        OrderWindow approvedOrder = OrderWindow.builder()
+                .id("order1")
+                .status(OrderStatus.APPROVED)
+                .build();
+
+        OrderWindow releasedOrder = OrderWindow.builder()
+                .id("order2")
+                .status(OrderStatus.RELEASED)
+                .build();
+
+        KeyValue<String, OrderWindow> kv1 = new KeyValue<>("key1", approvedOrder);
+        KeyValue<String, OrderWindow> kv2 = new KeyValue<>("key2", releasedOrder);
+
+        // Mock the predicate service to return an actual predicate
+        Predicate<OrderWindow> approvedPredicate = order -> order.getStatus() == OrderStatus.APPROVED;
+        when(predicateService.isApproved()).thenReturn(approvedPredicate);
+
+        when(kafkaStateStoreService.getStoreFor(orderWindowGlobalKTable)).thenReturn(store);
+        when(store.all()).thenReturn(iterator);
+        when(iterator.hasNext()).thenReturn(true, true, false);
+        when(iterator.next()).thenReturn(kv1, kv2);
+
+        // When
+        processor.process(exchange);
+
+        // Then
+        @SuppressWarnings("unchecked")
+        List<String> result = exchange.getMessage().getBody(List.class);
+        assertEquals(1, result.size());
+        assertEquals("order1", result.get(0));
+
+        verify(predicateService).isApproved();
+        verify(iterator).close();
     }
 }

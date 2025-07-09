@@ -5,6 +5,7 @@ import com.example.processor.OrderWindowDataExtractorOldProcessor;
 import com.example.processor.OrderWindowTombstoneOldProcessor;
 import com.example.service.GlobalKTableMetricsService;
 import com.example.service.KafkaStateStoreService;
+import com.example.service.OrderWindowPredicateService;
 import org.apache.camel.spring.boot.CamelAutoConfiguration;
 import org.apache.kafka.streams.kstream.GlobalKTable;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -14,8 +15,11 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.kafka.config.StreamsBuilderFactoryBean;
 
-import static org.mockito.Mockito.mock;
+import javax.validation.Validation;
+import javax.validation.Validator;
+import javax.validation.ValidatorFactory;
 
+import static org.mockito.Mockito.mock;
 
 @TestConfiguration
 @EnableAutoConfiguration
@@ -56,6 +60,19 @@ public class IntegrationTestConfiguration {
     @Primary
     public GlobalKTable<String, Object> globalKTable() {
         return mock(GlobalKTable.class);
+    }
+
+    @Bean
+    @Primary
+    public OrderWindowPredicateService orderWindowPredicateService() {
+        return new OrderWindowPredicateService();
+    }
+
+    @Bean
+    @Primary
+    public Validator validator() {
+        ValidatorFactory factory = Validation.buildDefaultValidatorFactory();
+        return factory.getValidator();
     }
 
     @Bean("orderWindowDataExtractorProcessor")

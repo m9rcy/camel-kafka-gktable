@@ -17,7 +17,7 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class OrderWindowDataExtractorProcessor implements Processor {
+public class OrderWindowDataExtractorFinalProcessor implements Processor {
 
     private final GlobalKTableQueryService globalKTableQueryService;
 

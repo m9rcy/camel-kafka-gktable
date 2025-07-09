@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -26,14 +27,14 @@ public class OrderWindowDataExtractorProcessor extends BaseGlobalKTableProcessor
     public OrderWindowDataExtractorProcessor(
             KafkaStateStoreService kafkaStateStoreService,
             GlobalKTable<String, OrderWindow> orderWindowGlobalKTable,
-            OrderWindowPredicateService orderWindowPredicateService) {
-        super(kafkaStateStoreService, orderWindowGlobalKTable, orderWindowPredicateService);
+            OrderWindowPredicateService predicateService) {
+        super(kafkaStateStoreService, orderWindowGlobalKTable, predicateService);
     }
 
     @Override
-    protected boolean shouldIncludeEntry(KeyValue<String, OrderWindow> entry) {
-        // Include all non-null OrderWindow entries
-        return entry.value != null;
+    protected Predicate<OrderWindow> getFilterPredicate() {
+        // Include all non-null OrderWindow entries (deduplication happens in post-processing)
+        return orderWindow -> true;
     }
 
     @Override
@@ -56,9 +57,9 @@ public class OrderWindowDataExtractorProcessor extends BaseGlobalKTableProcessor
 
         List<OrderWindow> result = new ArrayList<>(latestVersions.values());
 
-        log.debug("Deduplicated {} raw records to {} unique orders", 
+        log.debug("Deduplicated {} raw records to {} unique orders",
                 results.size(), result.size());
-        
+
         return result;
     }
 

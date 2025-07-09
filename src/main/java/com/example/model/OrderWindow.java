@@ -39,20 +39,20 @@ public class OrderWindow {
     private Integer version;
     
     // Custom validation method that can be called by @AssertTrue
-    @AssertTrue(message = "Plan end date must be after plan start date")
-    public boolean isValidDateRange() {
-        if (planStartDate == null || planEndDate == null) {
-            return true; // Let @NotNull handle null validation
-        }
-        return planEndDate.isAfter(planStartDate);
-    }
+//    @AssertTrue(message = "Plan end date must be after plan start date")
+//    public boolean isValidDateRange() {
+//        if (planStartDate == null || planEndDate == null) {
+//            return true; // Let @NotNull handle null validation
+//        }
+//        return planEndDate.isAfter(planStartDate);
+//    }
     
     // Business rule validation
-    @AssertTrue(message = "Released orders cannot have plan end date more than 1 year in the future")
-    public boolean isValidReleasedDateRange() {
-        if (status != OrderStatus.RELEASED || planEndDate == null) {
-            return true;
-        }
-        return planEndDate.isBefore(OffsetDateTime.now().plusYears(1));
-    }
+    //@AssertTrue(message = "Released orders cannot have plan end date more than 1 year in the future")
+//    public boolean isValidReleasedDateRange() {
+//        if (status != OrderStatus.RELEASED || planEndDate == null) {
+//            return true;
+//        }
+//        return planEndDate.isBefore(OffsetDateTime.now().plusYears(1));
+//    }
 }

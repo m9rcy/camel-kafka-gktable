@@ -12,11 +12,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -25,17 +23,17 @@ import static org.mockito.Mockito.*;
 // ==================== OrderWindowDataExtractorProcessorTest ====================
 
 @ExtendWith(MockitoExtension.class)
-class OrderWindowDataExtractorProcessorTest {
+class OrderWindowDataExtractorFinalProcessorTest {
 
     @Mock
     private GlobalKTableQueryService globalKTableQueryService;
 
-    private OrderWindowDataExtractorProcessor processor;
+    private OrderWindowDataExtractorFinalProcessor processor;
     private Exchange exchange;
 
     @BeforeEach
     void setUp() {
-        processor = new OrderWindowDataExtractorProcessor(globalKTableQueryService);
+        processor = new OrderWindowDataExtractorFinalProcessor(globalKTableQueryService);
         exchange = new DefaultExchange(new DefaultCamelContext());
     }
 

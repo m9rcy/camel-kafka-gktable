@@ -16,7 +16,7 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class OrderWindowTombstoneProcessor implements Processor {
+public class OrderWindowTombstoneFinalProcessor implements Processor {
 
     private static final int TOMBSTONE_THRESHOLD_DAYS = 13;
 
