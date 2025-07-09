@@ -2,6 +2,7 @@ package com.example;
 
 import com.example.model.OrderStatus;
 import com.example.model.OrderWindow;
+import com.example.service.OrderWindowPredicateService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.*;
@@ -15,6 +16,7 @@ import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.kafka.support.serializer.JsonSerde;
 import org.springframework.test.context.TestPropertySource;
+import javax.validation.Validator;
 
 import java.time.OffsetDateTime;
 import java.util.Properties;
@@ -43,6 +45,11 @@ class KafkaStreamsIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private OrderWindowPredicateService orderWindowPredicateService;
+    @Autowired
+    private Validator validator;
+
     private KafkaStreamsTopologyConfig topologyConfig;
     private TopologyTestDriver testDriver;
     private TestInputTopic<String, OrderWindow> inputTopic;
@@ -55,7 +62,7 @@ class KafkaStreamsIntegrationTest {
 
         // Build topology using the actual configuration
         StreamsBuilder streamsBuilder = new StreamsBuilder();
-        topologyConfig = new KafkaStreamsTopologyConfig(kafkaTopicConfig, streamsBuilder);
+        topologyConfig = new KafkaStreamsTopologyConfig(kafkaTopicConfig, streamsBuilder, orderWindowPredicateService, validator);
         GlobalKTable<String, OrderWindow> globalKTable = topologyConfig.orderWindowGlobalKTable(kafkaProperties, objectMapper);
 
         // Build the complete topology

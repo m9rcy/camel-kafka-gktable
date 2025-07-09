@@ -2,6 +2,7 @@ package com.example.processor;
 
 import com.example.model.OrderWindow;
 import com.example.service.KafkaStateStoreService;
+import com.example.service.OrderWindowPredicateService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.kstream.GlobalKTable;
@@ -24,8 +25,9 @@ public class OrderWindowDataExtractorProcessor extends BaseGlobalKTableProcessor
 
     public OrderWindowDataExtractorProcessor(
             KafkaStateStoreService kafkaStateStoreService,
-            GlobalKTable<String, OrderWindow> orderWindowGlobalKTable) {
-        super(kafkaStateStoreService, orderWindowGlobalKTable);
+            GlobalKTable<String, OrderWindow> orderWindowGlobalKTable,
+            OrderWindowPredicateService orderWindowPredicateService) {
+        super(kafkaStateStoreService, orderWindowGlobalKTable, orderWindowPredicateService);
     }
 
     @Override
