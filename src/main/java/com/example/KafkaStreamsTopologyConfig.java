@@ -1,5 +1,6 @@
 package com.example;
 
+import com.example.model.Code;
 import com.example.model.OrderWindow;
 import com.example.service.OrderWindowPredicateService;
 import com.fasterxml.jackson.databind.JavaType;
@@ -59,6 +60,20 @@ public class KafkaStreamsTopologyConfig {
                 kafkaTopicConfig.getOrderWindowFilteredTopic(),
                 Consumed.with(Serdes.String(), orderWindowSerde),
                 Materialized.as("order-window-global-store")
+        );
+    }
+
+    @Bean
+    public GlobalKTable<String, Code> codeGlobalKTable(
+            KafkaProperties kafkaProperties,
+            ObjectMapper objectMapper) {
+
+        JsonSerde<Code> codeJsonSerde = createValueSerde(kafkaProperties, Code.class, objectMapper);
+
+        return streamsBuilder.globalTable(
+                kafkaTopicConfig.getCodeLookupTopic(),
+                Consumed.with(Serdes.String(), codeJsonSerde),
+                Materialized.as("code-global-store")
         );
     }
 

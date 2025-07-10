@@ -10,4 +10,5 @@ import org.springframework.context.annotation.Configuration;
 public class KafkaTopicConfig {
     private String orderWindowTopic;
     private String orderWindowFilteredTopic;
+    private String codeLookupTopic;
 }
