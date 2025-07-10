@@ -37,6 +37,8 @@ public class OrderWindow {
     @Min(value = 1, message = "Version must be at least 1")
     @Max(value = 1000, message = "Version must be at most 1000")
     private Integer version;
+
+    private String idRef;
     
     // Custom validation method that can be called by @AssertTrue
 //    @AssertTrue(message = "Plan end date must be after plan start date")

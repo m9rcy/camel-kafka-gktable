@@ -20,7 +20,6 @@ import org.springframework.kafka.support.serializer.JsonSerializer;
 
 import javax.validation.ConstraintViolation;
 import javax.validation.Validator;
-import java.time.OffsetDateTime;
 import java.util.Set;
 import java.util.function.Predicate;
 
