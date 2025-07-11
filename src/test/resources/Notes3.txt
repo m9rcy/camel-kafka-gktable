@@ -1,0 +1,329 @@
+package com.example.service;
+
+import com.example.model.Code;
+import com.example.model.OrderStatus;
+import com.example.model.OrderWindow;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+/**
+ * Example service that demonstrates using both OrderWindow and Code query services.
+ * This shows how to work with multiple GlobalKTables in a single service.
+ */
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class BusinessLogicService {
+
+    private final OrderWindowQueryService orderWindowQueryService;
+    private final CodeQueryService codeQueryService;
+
+    /**
+     * Get orders with enriched information from code lookup.
+     * This demonstrates joining data from two GlobalKTables.
+     */
+    public List<EnrichedOrderInfo> getEnrichedOrders(OrderStatus status) {
+        log.info("Getting enriched orders with status: {}", status);
+
+        // Get orders from OrderWindow GlobalKTable
+        List<OrderWindow> orders = orderWindowQueryService.queryDeduplicatedValues(
+            OrderWindowPredicates.hasStatus(status)
+        );
+
+        // Get all codes from Code GlobalKTable for lookup
+        List<Code> allCodes = codeQueryService.queryAllValues();
+        Map<String, Code> codeMap = allCodes.stream()
+            .collect(Collectors.toMap(Code::getId, code -> code));
+
+        // Create enriched information
+        return orders.stream()
+            .map(order -> {
+                // Assuming order has some code reference (you'd adapt this to your actual relationship)
+                Code relatedCode = codeMap.get(order.getId()); // Or however your data is related
+                return EnrichedOrderInfo.builder()
+                    .order(order)
+                    .relatedCode(relatedCode)
+                    .build();
+            })
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Get orders that end within specified days and have valid code references.
+     */
+    public List<OrderWindow> getOrdersEndingSoonWithValidCodes(int days) {
+        log.info("Getting orders ending within {} days with valid codes", days);
+
+        OffsetDateTime cutoffDate = OffsetDateTime.now().plusDays(days);
+
+        // Get orders ending soon
+        List<OrderWindow> endingSoonOrders = orderWindowQueryService.queryDeduplicatedValues(
+            OrderWindowPredicates.endDateBeforeOrEqual(cutoffDate)
+        );
+
+        // Filter to only those with valid code references
+        return endingSoonOrders.stream()
+            .filter(order -> {
+                // Check if the related code exists (adapt this to your actual relationship)
+                return codeQueryService.codeExists(order.getId()); // Or however your data is related
+            })
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Get statistics across both GlobalKTables.
+     */
+    public CrossTableStatistics getCrossTableStatistics() {
+        log.info("Calculating cross-table statistics");
+
+        // OrderWindow statistics
+        long totalOrders = orderWindowQueryService.count(orderWindow -> true);
+        long approvedOrders = orderWindowQueryService.countDeduplicated(OrderWindowPredicates.isApproved());
+        long releasedOrders = orderWindowQueryService.countDeduplicated(OrderWindowPredicates.isReleased());
+        long overdueOrders = orderWindowQueryService.countDeduplicated(
+            OrderWindowPredicates.endDateBefore(OffsetDateTime.now())
+        );
+
+        // Code statistics
+        long totalCodes = codeQueryService.count(code -> true);
+        long codesWithDescription = codeQueryService.count(CodePredicates.hasNonEmptyDescription());
+        long codesWithoutDescription = codeQueryService.count(CodePredicates.hasEmptyDescription());
+
+        return CrossTableStatistics.builder()
+            .totalOrders(totalOrders)
+            .approvedOrders(approvedOrders)
+            .releasedOrders(releasedOrders)
+            .overdueOrders(overdueOrders)
+            .totalCodes(totalCodes)
+            .codesWithDescription(codesWithDescription)
+            .codesWithoutDescription(codesWithoutDescription)
+            .calculatedAt(OffsetDateTime.now())
+            .build();
+    }
+
+    /**
+     * Search codes by pattern and find related orders.
+     */
+    public List<Code> searchCodesWithRelatedOrders(String searchPattern) {
+        log.info("Searching codes with pattern: {}", searchPattern);
+
+        // Find codes matching the pattern
+        List<Code> matchingCodes = codeQueryService.findByNamePattern(searchPattern);
+
+        // Filter to only those that have related orders
+        return matchingCodes.stream()
+            .filter(code -> {
+                // Check if there are orders related to this code (adapt to your relationship)
+                return orderWindowQueryService.exists(OrderWindowPredicates.hasId(code.getId()));
+            })
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Get orders with missing code references.
+     */
+    public List<OrderWindow> getOrdersWithMissingCodes() {
+        log.info("Finding orders with missing code references");
+
+        List<OrderWindow> allOrders = orderWindowQueryService.queryAllDeduplicatedValues();
+
+        return allOrders.stream()
+            .filter(order -> {
+                // Check if the related code is missing (adapt to your relationship)
+                return !codeQueryService.codeExists(order.getId()); // Or however your data is related
+            })
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Clean up old orders and unused codes.
+     */
+    public CleanupReport performCleanup(int retentionDays) {
+        log.info("Performing cleanup with retention of {} days", retentionDays);
+
+        OffsetDateTime cutoffDate = OffsetDateTime.now().minusDays(retentionDays);
+
+        // Find old orders eligible for cleanup
+        List<String> oldOrderKeys = orderWindowQueryService.queryKeys(
+            OrderWindowPredicates.isReleased()
+                .and(OrderWindowPredicates.endDateBefore(cutoffDate))
+        );
+
+        // Find codes that have no related orders (adapt to your relationship)
+        List<Code> allCodes = codeQueryService.queryAllValues();
+        List<String> unusedCodeKeys = allCodes.stream()
+            .filter(code -> !orderWindowQueryService.exists(OrderWindowPredicates.hasId(code.getId())))
+            .map(Code::getId)
+            .collect(Collectors.toList());
+
+        return CleanupReport.builder()
+            .oldOrderKeysToCleanup(oldOrderKeys)
+            .unusedCodeKeysToCleanup(unusedCodeKeys)
+            .retentionDays(retentionDays)
+            .generatedAt(OffsetDateTime.now())
+            .build();
+    }
+}
+
+/**
+ * DTO for enriched order information.
+ */
+@lombok.Builder
+@lombok.Data
+class EnrichedOrderInfo {
+    private final OrderWindow order;
+    private final Code relatedCode;
+}
+
+/**
+ * DTO for cross-table statistics.
+ */
+@lombok.Builder
+@lombok.Data
+class CrossTableStatistics {
+    private final long totalOrders;
+    private final long approvedOrders;
+    private final long releasedOrders;
+    private final long overdueOrders;
+    private final long totalCodes;
+    private final long codesWithDescription;
+    private final long codesWithoutDescription;
+    private final OffsetDateTime calculatedAt;
+}
+
+/**
+ * DTO for cleanup report.
+ */
+@lombok.Builder
+@lombok.Data
+class CleanupReport {
+    private final List<String> oldOrderKeysToCleanup;
+    private final List<String> unusedCodeKeysToCleanup;
+    private final int retentionDays;
+    private final OffsetDateTime generatedAt;
+}
+
+// ==================== Example REST Controller ====================
+
+package com.example.controller;
+
+import com.example.model.Code;
+import com.example.model.OrderStatus;
+import com.example.model.OrderWindow;
+import com.example.service.BusinessLogicService;
+import com.example.service.CodeQueryService;
+import com.example.service.OrderWindowQueryService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Example REST controller showing how to use the generic query services.
+ */
+@RestController
+@RequestMapping("/api/query")
+@RequiredArgsConstructor
+public class QueryController {
+
+    private final OrderWindowQueryService orderWindowQueryService;
+    private final CodeQueryService codeQueryService;
+    private final BusinessLogicService businessLogicService;
+
+    @GetMapping("/orders")
+    public ResponseEntity<List<OrderWindow>> getOrders(
+            @RequestParam(required = false) OrderStatus status,
+            @RequestParam(defaultValue = "true") boolean deduplicated) {
+
+        if (status != null) {
+            List<OrderWindow> orders = deduplicated
+                ? orderWindowQueryService.queryDeduplicatedValues(
+                    com.example.service.OrderWindowPredicates.hasStatus(status))
+                : orderWindowQueryService.queryValues(
+                    com.example.service.OrderWindowPredicates.hasStatus(status));
+            return ResponseEntity.ok(orders);
+        } else {
+            List<OrderWindow> orders = deduplicated
+                ? orderWindowQueryService.queryAllDeduplicatedValues()
+                : orderWindowQueryService.queryAllValues();
+            return ResponseEntity.ok(orders);
+        }
+    }
+
+    @GetMapping("/orders/count")
+    public ResponseEntity<Map<String, Long>> getOrderCounts() {
+        long totalCount = orderWindowQueryService.count(order -> true);
+        long approvedCount = orderWindowQueryService.countDeduplicated(
+            com.example.service.OrderWindowPredicates.isApproved());
+        long releasedCount = orderWindowQueryService.countDeduplicated(
+            com.example.service.OrderWindowPredicates.isReleased());
+
+        Map<String, Long> counts = Map.of(
+            "total", totalCount,
+            "approved", approvedCount,
+            "released", releasedCount
+        );
+
+        return ResponseEntity.ok(counts);
+    }
+
+    @GetMapping("/codes")
+    public ResponseEntity<List<Code>> getCodes(@RequestParam(required = false) String namePattern) {
+        List<Code> codes = namePattern != null
+            ? codeQueryService.findByNamePattern(namePattern)
+            : codeQueryService.queryAllValues();
+        return ResponseEntity.ok(codes);
+    }
+
+    @GetMapping("/codes/{id}")
+    public ResponseEntity<Code> getCode(@PathVariable String id) {
+        Code code = codeQueryService.getByKey(id);
+        return code != null ? ResponseEntity.ok(code) : ResponseEntity.notFound().build();
+    }
+
+    @GetMapping("/codes/search")
+    public ResponseEntity<List<Code>> searchCodes(
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String description) {
+
+        if (name != null && description != null) {
+            List<Code> codes = codeQueryService.queryValues(
+                com.example.service.CodePredicates.nameContains(name)
+                    .and(com.example.service.CodePredicates.descriptionContains(description))
+            );
+            return ResponseEntity.ok(codes);
+        } else if (name != null) {
+            return ResponseEntity.ok(codeQueryService.findByNamePattern(name));
+        } else if (description != null) {
+            return ResponseEntity.ok(codeQueryService.findByDescriptionPattern(description));
+        } else {
+            return ResponseEntity.ok(codeQueryService.queryAllValues());
+        }
+    }
+
+    @GetMapping("/enriched-orders")
+    public ResponseEntity<List<EnrichedOrderInfo>> getEnrichedOrders(@RequestParam OrderStatus status) {
+        List<EnrichedOrderInfo> enrichedOrders = businessLogicService.getEnrichedOrders(status);
+        return ResponseEntity.ok(enrichedOrders);
+    }
+
+    @GetMapping("/statistics")
+    public ResponseEntity<CrossTableStatistics> getStatistics() {
+        CrossTableStatistics stats = businessLogicService.getCrossTableStatistics();
+        return ResponseEntity.ok(stats);
+    }
+
+    @GetMapping("/cleanup-report")
+    public ResponseEntity<CleanupReport> getCleanupReport(@RequestParam(defaultValue = "30") int retentionDays) {
+        CleanupReport report = businessLogicService.performCleanup(retentionDays);
+        return ResponseEntity.ok(report);
+    }
+}

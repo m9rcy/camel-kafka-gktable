@@ -3,6 +3,7 @@ package com.example.service;
 import com.example.model.GlobalKTableMetrics;
 import com.example.model.OrderStatus;
 import com.example.model.OrderWindow;
+import com.example.service.predicate.OrderWindowPredicates;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -23,7 +24,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class GlobalKTableMetricsService {
 
-    private final GlobalKTableQueryService globalKTableQueryService;
+    private final OrderWindowQueryService globalKTableQueryService;
 
     private final AtomicLong totalRecordsCount = new AtomicLong(0);
     private final AtomicLong duplicateKeysCount = new AtomicLong(0);
@@ -34,7 +35,7 @@ public class GlobalKTableMetricsService {
     private final Counter metricsUpdateCounter;
     private final Counter tombstoneEligibleCounter;
 
-    public GlobalKTableMetricsService(GlobalKTableQueryService globalKTableQueryService,
+    public GlobalKTableMetricsService(OrderWindowQueryService globalKTableQueryService,
                                       MeterRegistry meterRegistry) {
         this.globalKTableQueryService = globalKTableQueryService;
 
@@ -93,16 +94,16 @@ public class GlobalKTableMetricsService {
 
             // Count by status using query service (deduplicated counts)
             long approvedCount = globalKTableQueryService.countDeduplicated(
-                    GlobalKTableQueryService.OrderWindowPredicates.isApproved()
+                    OrderWindowPredicates.isApproved()
             );
 
             long releasedCount = globalKTableQueryService.countDeduplicated(
-                    GlobalKTableQueryService.OrderWindowPredicates.isReleased()
+                    OrderWindowPredicates.isReleased()
             );
 
             // Count tombstone eligible records
             long tombstoneEligibleCount = globalKTableQueryService.count(
-                    GlobalKTableQueryService.OrderWindowPredicates.isTombstoneEligible(13)
+                    OrderWindowPredicates.isTombstoneEligible(13)
             );
 
             // Update atomic counters for gauges
@@ -171,7 +172,7 @@ public class GlobalKTableMetricsService {
         log.debug("Getting tombstone eligible orders using query service");
 
         return globalKTableQueryService.queryValues(
-                GlobalKTableQueryService.OrderWindowPredicates.isTombstoneEligible(13)
+                OrderWindowPredicates.isTombstoneEligible(13)
         );
     }
 
@@ -187,11 +188,11 @@ public class GlobalKTableMetricsService {
 
         if (deduplicated) {
             return globalKTableQueryService.queryDeduplicatedValues(
-                    GlobalKTableQueryService.OrderWindowPredicates.hasStatus(status)
+                    OrderWindowPredicates.hasStatus(status)
             );
         } else {
             return globalKTableQueryService.queryValues(
-                    GlobalKTableQueryService.OrderWindowPredicates.hasStatus(status)
+                    OrderWindowPredicates.hasStatus(status)
             );
         }
     }
@@ -210,11 +211,11 @@ public class GlobalKTableMetricsService {
 
         if (deduplicated) {
             return globalKTableQueryService.queryDeduplicatedValues(
-                    GlobalKTableQueryService.OrderWindowPredicates.endDateBeforeOrEqual(cutoffDate)
+                    OrderWindowPredicates.endDateBeforeOrEqual(cutoffDate)
             );
         } else {
             return globalKTableQueryService.queryValues(
-                    GlobalKTableQueryService.OrderWindowPredicates.endDateBeforeOrEqual(cutoffDate)
+                    OrderWindowPredicates.endDateBeforeOrEqual(cutoffDate)
             );
         }
     }
@@ -230,11 +231,11 @@ public class GlobalKTableMetricsService {
 
         if (deduplicated) {
             return globalKTableQueryService.queryDeduplicatedValues(
-                    GlobalKTableQueryService.OrderWindowPredicates.endDateBefore(OffsetDateTime.now())
+                    OrderWindowPredicates.endDateBefore(OffsetDateTime.now())
             );
         } else {
             return globalKTableQueryService.queryValues(
-                    GlobalKTableQueryService.OrderWindowPredicates.endDateBefore(OffsetDateTime.now())
+                    OrderWindowPredicates.endDateBefore(OffsetDateTime.now())
             );
         }
     }
@@ -247,7 +248,7 @@ public class GlobalKTableMetricsService {
      */
     public boolean hasOrdersWithStatus(OrderStatus status) {
         return globalKTableQueryService.exists(
-                GlobalKTableQueryService.OrderWindowPredicates.hasStatus(status)
+                OrderWindowPredicates.hasStatus(status)
         );
     }
 
@@ -259,7 +260,7 @@ public class GlobalKTableMetricsService {
      */
     public long getOrderCountByStatus(OrderStatus status) {
         return globalKTableQueryService.countDeduplicated(
-                GlobalKTableQueryService.OrderWindowPredicates.hasStatus(status)
+                OrderWindowPredicates.hasStatus(status)
         );
     }
 
@@ -275,23 +276,23 @@ public class GlobalKTableMetricsService {
 
         // Count by various criteria
         long overdueCount = globalKTableQueryService.countDeduplicated(
-                GlobalKTableQueryService.OrderWindowPredicates.endDateBefore(now)
+                OrderWindowPredicates.endDateBefore(now)
         );
 
         long endingThisWeek = globalKTableQueryService.countDeduplicated(
-                GlobalKTableQueryService.OrderWindowPredicates
+                OrderWindowPredicates
                         .endDateAfter(now)
-                        .and(GlobalKTableQueryService.OrderWindowPredicates.endDateBeforeOrEqual(now.plusDays(7)))
+                        .and(OrderWindowPredicates.endDateBeforeOrEqual(now.plusDays(7)))
         );
 
         long activeApproved = globalKTableQueryService.countDeduplicated(
-                GlobalKTableQueryService.OrderWindowPredicates.isApproved()
-                        .and(GlobalKTableQueryService.OrderWindowPredicates.endDateAfter(now))
+                OrderWindowPredicates.isApproved()
+                        .and(OrderWindowPredicates.endDateAfter(now))
         );
 
         long activeReleased = globalKTableQueryService.countDeduplicated(
-                GlobalKTableQueryService.OrderWindowPredicates.isReleased()
-                        .and(GlobalKTableQueryService.OrderWindowPredicates.endDateAfter(now))
+                OrderWindowPredicates.isReleased()
+                        .and(OrderWindowPredicates.endDateAfter(now))
         );
 
         return AdvancedGlobalKTableMetrics.builder()
