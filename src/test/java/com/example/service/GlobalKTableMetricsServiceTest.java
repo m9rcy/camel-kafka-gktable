@@ -25,7 +25,7 @@ import static org.mockito.Mockito.*;
 class GlobalKTableMetricsServiceTest {
 
     @Mock
-    private GlobalKTableQueryService globalKTableQueryService;
+    private OrderWindowQueryService globalKTableQueryService;
 
     private MeterRegistry meterRegistry;
     private GlobalKTableMetricsService metricsService;

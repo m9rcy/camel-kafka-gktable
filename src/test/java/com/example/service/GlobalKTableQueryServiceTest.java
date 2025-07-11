@@ -2,6 +2,7 @@ package com.example.service;
 
 import com.example.model.OrderStatus;
 import com.example.model.OrderWindow;
+import com.example.service.predicate.OrderWindowPredicates;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.kstream.GlobalKTable;
 import org.apache.kafka.streams.state.KeyValueIterator;
@@ -34,11 +35,11 @@ class GlobalKTableQueryServiceTest {
     @Mock
     private KeyValueIterator<String, OrderWindow> iterator;
 
-    private GlobalKTableQueryService queryService;
+    private OrderWindowQueryService queryService;
 
     @BeforeEach
     void setUp() {
-        queryService = new GlobalKTableQueryService(kafkaStateStoreService, orderWindowGlobalKTable);
+        queryService = new OrderWindowQueryService(kafkaStateStoreService, orderWindowGlobalKTable);
     }
 
     @Test
@@ -64,7 +65,7 @@ class GlobalKTableQueryServiceTest {
         when(iterator.hasNext()).thenReturn(true, true, false);
         when(iterator.next()).thenReturn(kv1, kv2);
 
-        Predicate<OrderWindow> predicate = GlobalKTableQueryService.OrderWindowPredicates.isApproved();
+        Predicate<OrderWindow> predicate = OrderWindowPredicates.isApproved();
 
         // When
         List<String> result = queryService.queryWithFilter(predicate, kv -> kv.key);
@@ -97,7 +98,7 @@ class GlobalKTableQueryServiceTest {
         when(iterator.next()).thenReturn(kv1, kv2);
 
         // When
-        List<String> keys = queryService.queryKeys(GlobalKTableQueryService.OrderWindowPredicates.isApproved());
+        List<String> keys = queryService.queryKeys(OrderWindowPredicates.isApproved());
 
         // Then
         assertEquals(1, keys.size());
@@ -127,7 +128,7 @@ class GlobalKTableQueryServiceTest {
         when(iterator.next()).thenReturn(kv1, kv2);
 
         // When
-        List<OrderWindow> values = queryService.queryValues(GlobalKTableQueryService.OrderWindowPredicates.isApproved());
+        List<OrderWindow> values = queryService.queryValues(OrderWindowPredicates.isApproved());
 
         // Then
         assertEquals(1, values.size());
@@ -168,7 +169,7 @@ class GlobalKTableQueryServiceTest {
 
         // When
         List<OrderWindow> values = queryService.queryDeduplicatedValues(
-            GlobalKTableQueryService.OrderWindowPredicates.isApproved()
+            OrderWindowPredicates.isApproved()
         );
 
         // Then
@@ -209,7 +210,7 @@ class GlobalKTableQueryServiceTest {
         when(iterator.next()).thenReturn(kv1, kv2);
 
         // When
-        long count = queryService.count(GlobalKTableQueryService.OrderWindowPredicates.isApproved());
+        long count = queryService.count(OrderWindowPredicates.isApproved());
 
         // Then
         assertEquals(1, count);
@@ -232,8 +233,8 @@ class GlobalKTableQueryServiceTest {
         when(iterator.next()).thenReturn(kv1);
 
         // When
-        boolean exists = queryService.exists(GlobalKTableQueryService.OrderWindowPredicates.isApproved());
-        boolean notExists = queryService.exists(GlobalKTableQueryService.OrderWindowPredicates.isReleased());
+        boolean exists = queryService.exists(OrderWindowPredicates.isApproved());
+        boolean notExists = queryService.exists(OrderWindowPredicates.isReleased());
 
         // Then
         assertTrue(exists);
@@ -331,50 +332,50 @@ class GlobalKTableQueryServiceTest {
                 .build();
 
         // Test status predicates
-        assertTrue(GlobalKTableQueryService.OrderWindowPredicates.isApproved().test(approvedOrder));
-        assertFalse(GlobalKTableQueryService.OrderWindowPredicates.isApproved().test(releasedOrder));
+        assertTrue(OrderWindowPredicates.isApproved().test(approvedOrder));
+        assertFalse(OrderWindowPredicates.isApproved().test(releasedOrder));
         
-        assertTrue(GlobalKTableQueryService.OrderWindowPredicates.isReleased().test(releasedOrder));
-        assertFalse(GlobalKTableQueryService.OrderWindowPredicates.isReleased().test(approvedOrder));
+        assertTrue(OrderWindowPredicates.isReleased().test(releasedOrder));
+        assertFalse(OrderWindowPredicates.isReleased().test(approvedOrder));
 
-        assertTrue(GlobalKTableQueryService.OrderWindowPredicates.hasStatus(OrderStatus.APPROVED).test(approvedOrder));
-        assertTrue(GlobalKTableQueryService.OrderWindowPredicates.hasStatus(OrderStatus.RELEASED).test(releasedOrder));
+        assertTrue(OrderWindowPredicates.hasStatus(OrderStatus.APPROVED).test(approvedOrder));
+        assertTrue(OrderWindowPredicates.hasStatus(OrderStatus.RELEASED).test(releasedOrder));
 
         // Test date predicates
-        assertTrue(GlobalKTableQueryService.OrderWindowPredicates.endDateBefore(testDate).test(approvedOrder));
-        assertFalse(GlobalKTableQueryService.OrderWindowPredicates.endDateBefore(testDate).test(releasedOrder));
+        assertTrue(OrderWindowPredicates.endDateBefore(testDate).test(approvedOrder));
+        assertFalse(OrderWindowPredicates.endDateBefore(testDate).test(releasedOrder));
 
-        assertTrue(GlobalKTableQueryService.OrderWindowPredicates.endDateAfter(testDate).test(releasedOrder));
-        assertFalse(GlobalKTableQueryService.OrderWindowPredicates.endDateAfter(testDate).test(approvedOrder));
+        assertTrue(OrderWindowPredicates.endDateAfter(testDate).test(releasedOrder));
+        assertFalse(OrderWindowPredicates.endDateAfter(testDate).test(approvedOrder));
 
-        assertTrue(GlobalKTableQueryService.OrderWindowPredicates.endDateBeforeOrEqual(testDate).test(approvedOrder));
-        assertTrue(GlobalKTableQueryService.OrderWindowPredicates.endDateAfterOrEqual(testDate).test(releasedOrder));
+        assertTrue(OrderWindowPredicates.endDateBeforeOrEqual(testDate).test(approvedOrder));
+        assertTrue(OrderWindowPredicates.endDateAfterOrEqual(testDate).test(releasedOrder));
 
         // Test ID and name predicates
-        assertTrue(GlobalKTableQueryService.OrderWindowPredicates.hasId("order1").test(approvedOrder));
-        assertFalse(GlobalKTableQueryService.OrderWindowPredicates.hasId("order1").test(releasedOrder));
+        assertTrue(OrderWindowPredicates.hasId("order1").test(approvedOrder));
+        assertFalse(OrderWindowPredicates.hasId("order1").test(releasedOrder));
 
-        assertTrue(GlobalKTableQueryService.OrderWindowPredicates.hasName("Test Order").test(approvedOrder));
-        assertFalse(GlobalKTableQueryService.OrderWindowPredicates.hasName("Test Order").test(releasedOrder));
+        assertTrue(OrderWindowPredicates.hasName("Test Order").test(approvedOrder));
+        assertFalse(OrderWindowPredicates.hasName("Test Order").test(releasedOrder));
 
-        assertTrue(GlobalKTableQueryService.OrderWindowPredicates.nameContains("test").test(approvedOrder));
-        assertTrue(GlobalKTableQueryService.OrderWindowPredicates.nameContains("another").test(releasedOrder));
-        assertFalse(GlobalKTableQueryService.OrderWindowPredicates.nameContains("nonexistent").test(approvedOrder));
+        assertTrue(OrderWindowPredicates.nameContains("test").test(approvedOrder));
+        assertTrue(OrderWindowPredicates.nameContains("another").test(releasedOrder));
+        assertFalse(OrderWindowPredicates.nameContains("nonexistent").test(approvedOrder));
 
         // Test version predicates
-        assertTrue(GlobalKTableQueryService.OrderWindowPredicates.hasVersion(2).test(approvedOrder));
-        assertFalse(GlobalKTableQueryService.OrderWindowPredicates.hasVersion(2).test(releasedOrder));
+        assertTrue(OrderWindowPredicates.hasVersion(2).test(approvedOrder));
+        assertFalse(OrderWindowPredicates.hasVersion(2).test(releasedOrder));
 
-        assertTrue(GlobalKTableQueryService.OrderWindowPredicates.versionGreaterThan(1).test(approvedOrder));
-        assertFalse(GlobalKTableQueryService.OrderWindowPredicates.versionGreaterThan(1).test(releasedOrder));
+        assertTrue(OrderWindowPredicates.versionGreaterThan(1).test(approvedOrder));
+        assertFalse(OrderWindowPredicates.versionGreaterThan(1).test(releasedOrder));
 
-        assertTrue(GlobalKTableQueryService.OrderWindowPredicates.versionLessThan(3).test(approvedOrder));
-        assertTrue(GlobalKTableQueryService.OrderWindowPredicates.versionLessThan(3).test(releasedOrder));
+        assertTrue(OrderWindowPredicates.versionLessThan(3).test(approvedOrder));
+        assertTrue(OrderWindowPredicates.versionLessThan(3).test(releasedOrder));
 
         // Test created date predicates (if createdDate is set)
         if (approvedOrder.getPlanStartDate() != null) {
-            assertTrue(GlobalKTableQueryService.OrderWindowPredicates.createdBefore(testDate).test(approvedOrder));
-            assertFalse(GlobalKTableQueryService.OrderWindowPredicates.createdBefore(testDate).test(releasedOrder));
+            assertTrue(OrderWindowPredicates.createdBefore(testDate).test(approvedOrder));
+            assertFalse(OrderWindowPredicates.createdBefore(testDate).test(releasedOrder));
         }
 
         // Test tombstone eligibility
@@ -383,9 +384,9 @@ class GlobalKTableQueryServiceTest {
                 .planEndDate(OffsetDateTime.now().minusDays(15))
                 .build();
 
-        assertTrue(GlobalKTableQueryService.OrderWindowPredicates.isTombstoneEligible(13).test(oldReleasedOrder));
-        assertFalse(GlobalKTableQueryService.OrderWindowPredicates.isTombstoneEligible(13).test(approvedOrder));
-        assertFalse(GlobalKTableQueryService.OrderWindowPredicates.isTombstoneEligible(13).test(releasedOrder));
+        assertTrue(OrderWindowPredicates.isTombstoneEligible(13).test(oldReleasedOrder));
+        assertFalse(OrderWindowPredicates.isTombstoneEligible(13).test(approvedOrder));
+        assertFalse(OrderWindowPredicates.isTombstoneEligible(13).test(releasedOrder));
     }
 
     @Test
@@ -407,10 +408,10 @@ class GlobalKTableQueryServiceTest {
                 .build();
 
         // Test AND combination
-        Predicate<OrderWindow> approvedAndOld = GlobalKTableQueryService.OrderWindowPredicates
+        Predicate<OrderWindow> approvedAndOld = OrderWindowPredicates
                 .and(
-                    GlobalKTableQueryService.OrderWindowPredicates.isApproved(),
-                    GlobalKTableQueryService.OrderWindowPredicates.endDateBefore(OffsetDateTime.now())
+                    OrderWindowPredicates.isApproved(),
+                    OrderWindowPredicates.endDateBefore(OffsetDateTime.now())
                 );
 
         assertTrue(approvedAndOld.test(approvedOldOrder));
@@ -418,10 +419,10 @@ class GlobalKTableQueryServiceTest {
         assertFalse(approvedAndOld.test(approvedNewOrder));
 
         // Test OR combination
-        Predicate<OrderWindow> approvedOrReleased = GlobalKTableQueryService.OrderWindowPredicates
+        Predicate<OrderWindow> approvedOrReleased = OrderWindowPredicates
                 .or(
-                    GlobalKTableQueryService.OrderWindowPredicates.isApproved(),
-                    GlobalKTableQueryService.OrderWindowPredicates.isReleased()
+                    OrderWindowPredicates.isApproved(),
+                    OrderWindowPredicates.isReleased()
                 );
 
         assertTrue(approvedOrReleased.test(approvedOldOrder));
@@ -429,8 +430,8 @@ class GlobalKTableQueryServiceTest {
         assertTrue(approvedOrReleased.test(approvedNewOrder));
 
         // Test NOT combination
-        Predicate<OrderWindow> notApproved = GlobalKTableQueryService.OrderWindowPredicates
-                .not(GlobalKTableQueryService.OrderWindowPredicates.isApproved());
+        Predicate<OrderWindow> notApproved = OrderWindowPredicates
+                .not(OrderWindowPredicates.isApproved());
 
         assertFalse(notApproved.test(approvedOldOrder));
         assertTrue(notApproved.test(releasedOldOrder));
@@ -455,7 +456,7 @@ class GlobalKTableQueryServiceTest {
 
         // When
         List<OrderWindow> values = queryService.queryValues(
-            GlobalKTableQueryService.OrderWindowPredicates.isApproved()
+            OrderWindowPredicates.isApproved()
         );
 
         // Then

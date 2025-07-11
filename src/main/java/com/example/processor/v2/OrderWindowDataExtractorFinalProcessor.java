@@ -2,6 +2,7 @@ package com.example.processor.v2;
 
 import com.example.model.OrderWindow;
 import com.example.service.GlobalKTableQueryService;
+import com.example.service.OrderWindowQueryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
@@ -19,7 +20,7 @@ import java.util.List;
 @Slf4j
 public class OrderWindowDataExtractorFinalProcessor implements Processor {
 
-    private final GlobalKTableQueryService globalKTableQueryService;
+    private final OrderWindowQueryService globalKTableQueryService;
 
     @Override
     public void process(Exchange exchange) throws Exception {

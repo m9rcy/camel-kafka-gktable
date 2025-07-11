@@ -4,6 +4,7 @@ import com.example.model.OrderStatus;
 import com.example.model.OrderWindow;
 import com.example.processor.OrderWindowTombstoneProcessor;
 import com.example.service.GlobalKTableQueryService;
+import com.example.service.OrderWindowQueryService;
 import org.apache.camel.Exchange;
 import org.apache.camel.impl.DefaultCamelContext;
 import org.apache.camel.support.DefaultExchange;
@@ -27,7 +28,7 @@ import static org.mockito.Mockito.*;
 class OrderWindowTombstoneProcessorTest {
 
     @Mock
-    private GlobalKTableQueryService globalKTableQueryService;
+    private OrderWindowQueryService globalKTableQueryService;
 
     private OrderWindowTombstoneFinalProcessor processor;
     private Exchange exchange;

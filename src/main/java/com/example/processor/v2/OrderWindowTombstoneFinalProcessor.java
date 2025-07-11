@@ -1,6 +1,7 @@
 package com.example.processor.v2;
 
 import com.example.service.GlobalKTableQueryService;
+import com.example.service.predicate.OrderWindowPredicates;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
@@ -28,7 +29,7 @@ public class OrderWindowTombstoneFinalProcessor implements Processor {
         
         // Query for keys eligible for tombstone cleanup using predefined predicate
         List<String> tombstoneKeys = globalKTableQueryService.queryKeys(
-            GlobalKTableQueryService.OrderWindowPredicates.isTombstoneEligible(TOMBSTONE_THRESHOLD_DAYS)
+            OrderWindowPredicates.isTombstoneEligible(TOMBSTONE_THRESHOLD_DAYS)
         );
         
         log.info("Found {} keys eligible for tombstone cleanup", tombstoneKeys.size());
