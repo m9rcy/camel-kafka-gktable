@@ -5,6 +5,7 @@ import com.example.model.OrderWindow;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.function.Predicate;
 
@@ -14,6 +15,31 @@ public class OrderWindowPredicateService {
 
     private static final int GLOBAL_KTABLE_RETENTION_DAYS = 12;
     private static final int TOMBSTONE_THRESHOLD_DAYS = 13;
+
+    private final Clock clock;
+
+    /**
+     * Constructor with Clock dependency injection.
+     * Uses system clock by default, but can be overridden for testing.
+     */
+    public OrderWindowPredicateService(Clock clock) {
+        this.clock = clock;
+    }
+
+    /**
+     * Default constructor that uses system clock.
+     * For backward compatibility and when clock injection is not needed.
+     */
+    public OrderWindowPredicateService() {
+        this(Clock.systemDefaultZone());
+    }
+
+    /**
+     * Get current time using the injected clock.
+     */
+    private OffsetDateTime now() {
+        return OffsetDateTime.now(clock);
+    }
 
     /**
      * Creates a predicate for GlobalKTable eligibility
@@ -67,27 +93,27 @@ public class OrderWindowPredicateService {
         return orderWindow -> orderWindow.getStatus() == status;
     }
 
-    // ========== Date-based Predicates ==========
+    // ========== Date-based Predicates (using Clock) ==========
 
     public Predicate<OrderWindow> isOlderThan(int days) {
         return orderWindow -> {
-            OffsetDateTime threshold = OffsetDateTime.now().minusDays(days);
+            OffsetDateTime threshold = now().minusDays(days);
             return orderWindow.getPlanEndDate().isBefore(threshold);
         };
     }
 
     public Predicate<OrderWindow> isNewerThan(int days) {
         return orderWindow -> {
-            OffsetDateTime threshold = OffsetDateTime.now().minusDays(days);
+            OffsetDateTime threshold = now().minusDays(days);
             return orderWindow.getPlanEndDate().isAfter(threshold);
         };
     }
 
     public Predicate<OrderWindow> isWithinDays(int days) {
         return orderWindow -> {
-            OffsetDateTime threshold = OffsetDateTime.now().minusDays(days);
-            return orderWindow.getPlanEndDate().isAfter(threshold) || 
-                   orderWindow.getPlanEndDate().equals(threshold);
+            OffsetDateTime threshold = now().minusDays(days);
+            return orderWindow.getPlanEndDate().isAfter(threshold) ||
+                    orderWindow.getPlanEndDate().equals(threshold);
         };
     }
 
@@ -120,7 +146,7 @@ public class OrderWindowPredicateService {
         return orderWindow -> orderWindow.getVersion() == version;
     }
 
-    // ========== Composite Predicates ==========
+    // ========== Composite Predicates (using Clock) ==========
 
     public Predicate<OrderWindow> isReleasedWithinRetentionPeriod() {
         return isReleased().and(isWithinDays(GLOBAL_KTABLE_RETENTION_DAYS));
@@ -158,16 +184,16 @@ public class OrderWindowPredicateService {
     }
 
     /**
-     * Creates a predicate for records that need immediate processing
+     * Creates a predicate for records that need immediate processing (using Clock)
      */
     public Predicate<OrderWindow> requiresImmediateProcessing() {
         return isApproved().or(
-            isReleased().and(isWithinDays(1))
+                isReleased().and(isWithinDays(1))
         );
     }
 
     /**
-     * Creates a predicate for records that are eligible for archival
+     * Creates a predicate for records that are eligible for archival (using Clock)
      */
     public Predicate<OrderWindow> isEligibleForArchival() {
         return (isDone().or(isReleased())).and(isOlderThan(30));
@@ -184,11 +210,18 @@ public class OrderWindowPredicateService {
     }
 
     /**
+     * Get the current time from the injected clock (useful for testing)
+     */
+    public OffsetDateTime getCurrentTime() {
+        return now();
+    }
+
+    /**
      * Logs the predicate logic for debugging
      */
     public void logPredicateLogic(String predicateName, OrderWindow orderWindow, boolean result) {
-        log.debug("Predicate '{}' evaluation for OrderWindow[id={}, status={}, planEndDate={}]: {}", 
-                predicateName, orderWindow.getId(), orderWindow.getStatus(), 
+        log.debug("Predicate '{}' evaluation for OrderWindow[id={}, status={}, planEndDate={}]: {}",
+                predicateName, orderWindow.getId(), orderWindow.getStatus(),
                 orderWindow.getPlanEndDate(), result);
     }
 }
