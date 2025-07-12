@@ -98,7 +98,8 @@ public class OrderWindowPredicateService {
     public Predicate<OrderWindow> isOlderThan(int days) {
         return orderWindow -> {
             OffsetDateTime threshold = now().minusDays(days);
-            return orderWindow.getPlanEndDate().isBefore(threshold);
+            return orderWindow.getPlanEndDate().isBefore(threshold) ||
+                    orderWindow.getPlanEndDate().equals(threshold);
         };
     }
 
