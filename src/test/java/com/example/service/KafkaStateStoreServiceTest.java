@@ -2,6 +2,7 @@ package com.example.service;
 
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StoreQueryParameters;
+import org.apache.kafka.streams.StreamsMetadata;
 import org.apache.kafka.streams.kstream.GlobalKTable;
 import org.apache.kafka.streams.state.QueryableStoreTypes;
 import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
@@ -12,6 +13,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.config.StreamsBuilderFactoryBean;
+
+import java.util.Collections;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -30,6 +34,9 @@ class KafkaStateStoreServiceTest {
 
     @Mock
     private ReadOnlyKeyValueStore<String, String> store;
+
+    @Mock
+    private StreamsMetadata streamsMetadata;
 
     private KafkaStateStoreService service;
 
@@ -90,5 +97,60 @@ class KafkaStateStoreServiceTest {
 
         // When & Then
         assertThrows(IllegalStateException.class, () -> service.getStore("test-store"));
+    }
+
+    @Test
+    void testGetAllStoreNames() {
+        // Given
+        String storeName = "test-store";
+        when(streamsBuilderFactoryBean.getKafkaStreams()).thenReturn(kafkaStreams);
+        when(streamsMetadata.stateStoreNames()).thenReturn(Collections.singleton(storeName));
+        when(kafkaStreams.metadataForAllStreamsClients()).thenReturn(Collections.singleton(streamsMetadata));
+
+        // When
+        Set<String> result = service.getAllStoreNames();
+
+        // Then
+        assertEquals(1, result.size());
+        assertTrue(result.contains(storeName));
+        verify(kafkaStreams).metadataForAllStreamsClients();
+    }
+
+    @Test
+    void testGetAllStoreNamesWhenEmpty() {
+        // Given
+        when(streamsBuilderFactoryBean.getKafkaStreams()).thenReturn(kafkaStreams);
+        when(kafkaStreams.metadataForAllStreamsClients()).thenReturn(Collections.emptySet());
+
+        // When
+        Set<String> result = service.getAllStoreNames();
+
+        // Then
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void testGetAllStoreNamesWhenKafkaStreamsNotAvailable() {
+        // Given
+        when(streamsBuilderFactoryBean.getKafkaStreams()).thenReturn(null);
+
+        // When & Then
+        assertThrows(IllegalStateException.class, () -> service.getAllStoreNames());
+    }
+
+    @Test
+    void testGetAllStoreNamesWithMultipleStores() {
+        // Given
+        Set<String> expectedStores = Set.of("store1", "store2", "store3");
+        when(streamsBuilderFactoryBean.getKafkaStreams()).thenReturn(kafkaStreams);
+        when(streamsMetadata.stateStoreNames()).thenReturn(expectedStores);
+        when(kafkaStreams.metadataForAllStreamsClients()).thenReturn(Collections.singleton(streamsMetadata));
+
+        // When
+        Set<String> result = service.getAllStoreNames();
+
+        // Then
+        assertEquals(3, result.size());
+        assertTrue(result.containsAll(expectedStores));
     }
 }

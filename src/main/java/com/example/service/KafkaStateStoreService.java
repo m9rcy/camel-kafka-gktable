@@ -11,6 +11,8 @@ import org.springframework.kafka.config.StreamsBuilderFactoryBean;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +26,14 @@ public class KafkaStateStoreService {
     public<V, K> ReadOnlyKeyValueStore<K,V> getStore(String storeName) {
         QueryableStoreType<ReadOnlyKeyValueStore<K,V>> storeType = QueryableStoreTypes.keyValueStore();
         return getKafkaStream().store(StoreQueryParameters.fromNameAndType(storeName, storeType));
+    }
+
+    public Set<String> getAllStoreNames() {
+        KafkaStreams kafkaStreams = getKafkaStream();
+        return kafkaStreams.metadataForAllStreamsClients()
+                .stream()
+                .flatMap(metadata -> metadata.stateStoreNames().stream())
+                .collect(Collectors.toSet());
     }
 
     private KafkaStreams getKafkaStream() {

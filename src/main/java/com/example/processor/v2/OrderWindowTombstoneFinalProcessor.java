@@ -1,6 +1,7 @@
 package com.example.processor.v2;
 
 import com.example.service.GlobalKTableQueryService;
+import com.example.service.OrderWindowQueryService;
 import com.example.service.predicate.OrderWindowPredicates;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +22,7 @@ public class OrderWindowTombstoneFinalProcessor implements Processor {
 
     private static final int TOMBSTONE_THRESHOLD_DAYS = 13;
 
-    private final GlobalKTableQueryService globalKTableQueryService;
+    private final OrderWindowQueryService globalKTableQueryService;
 
     @Override
     public void process(Exchange exchange) throws Exception {
