@@ -3,6 +3,7 @@ package com.example.config;
 import com.example.KafkaTopicConfig;
 import com.example.model.Code;
 import com.example.model.OrderWindow;
+import com.example.service.GlobalKTableRegistry;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ public class KafkaStreamsTopologyConfig {
 
     private final KafkaTopicConfig kafkaTopicConfig;
     private final StreamsBuilder streamsBuilder;
+    private final GlobalKTableRegistry globalKTableRegistry;
 
     @Bean
     public GlobalKTable<String, OrderWindow> orderWindowGlobalKTable(
@@ -33,11 +35,15 @@ public class KafkaStreamsTopologyConfig {
             ObjectMapper objectMapper) {
         
         JsonSerde<OrderWindow> orderWindowSerde = createValueSerde(kafkaProperties, OrderWindow.class, objectMapper);
-        return streamsBuilder.globalTable(
+
+        GlobalKTable<String, OrderWindow> orderWindowGlobalKTable = streamsBuilder.globalTable(
                 kafkaTopicConfig.getOrderWindowTopic(),
                 Consumed.with(Serdes.String(), orderWindowSerde),
-                Materialized.as("order-window-global-store")
-        );
+                Materialized.as("order-window-global-store"));
+
+        globalKTableRegistry.register("order-window-global-store", orderWindowGlobalKTable);
+
+        return orderWindowGlobalKTable;
     }
 
     @Bean
@@ -47,11 +53,15 @@ public class KafkaStreamsTopologyConfig {
 
         JsonSerde<Code> codeJsonSerde = createValueSerde(kafkaProperties, Code.class, objectMapper);
 
-        return streamsBuilder.globalTable(
+        GlobalKTable<String, Code> codeGlobalKTable = streamsBuilder.globalTable(
                 kafkaTopicConfig.getCodeLookupTopic(),
                 Consumed.with(Serdes.String(), codeJsonSerde),
                 Materialized.as("code-global-store")
         );
+
+        globalKTableRegistry.register("code-global-store", codeGlobalKTable);
+
+        return codeGlobalKTable;
     }
 
     /**

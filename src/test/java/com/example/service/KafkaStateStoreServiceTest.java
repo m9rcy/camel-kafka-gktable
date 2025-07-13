@@ -2,7 +2,6 @@ package com.example.service;
 
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StoreQueryParameters;
-import org.apache.kafka.streams.StreamsMetadata;
 import org.apache.kafka.streams.kstream.GlobalKTable;
 import org.apache.kafka.streams.state.QueryableStoreTypes;
 import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
@@ -14,7 +13,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.config.StreamsBuilderFactoryBean;
 
-import java.util.Collections;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -27,6 +25,9 @@ class KafkaStateStoreServiceTest {
     private StreamsBuilderFactoryBean streamsBuilderFactoryBean;
 
     @Mock
+    private GlobalKTableRegistry globalKTableRegistry;
+
+    @Mock
     private KafkaStreams kafkaStreams;
 
     @Mock
@@ -35,14 +36,11 @@ class KafkaStateStoreServiceTest {
     @Mock
     private ReadOnlyKeyValueStore<String, String> store;
 
-    @Mock
-    private StreamsMetadata streamsMetadata;
-
     private KafkaStateStoreService service;
 
     @BeforeEach
     void setUp() {
-        service = new KafkaStateStoreService(streamsBuilderFactoryBean);
+        service = new KafkaStateStoreService(streamsBuilderFactoryBean, globalKTableRegistry);
     }
 
     @Test
@@ -102,49 +100,8 @@ class KafkaStateStoreServiceTest {
     @Test
     void testGetAllStoreNames() {
         // Given
-        String storeName = "test-store";
-        when(streamsBuilderFactoryBean.getKafkaStreams()).thenReturn(kafkaStreams);
-        when(streamsMetadata.stateStoreNames()).thenReturn(Collections.singleton(storeName));
-        when(kafkaStreams.metadataForAllStreamsClients()).thenReturn(Collections.singleton(streamsMetadata));
-
-        // When
-        Set<String> result = service.getAllStoreNames();
-
-        // Then
-        assertEquals(1, result.size());
-        assertTrue(result.contains(storeName));
-        verify(kafkaStreams).metadataForAllStreamsClients();
-    }
-
-    @Test
-    void testGetAllStoreNamesWhenEmpty() {
-        // Given
-        when(streamsBuilderFactoryBean.getKafkaStreams()).thenReturn(kafkaStreams);
-        when(kafkaStreams.metadataForAllStreamsClients()).thenReturn(Collections.emptySet());
-
-        // When
-        Set<String> result = service.getAllStoreNames();
-
-        // Then
-        assertTrue(result.isEmpty());
-    }
-
-    @Test
-    void testGetAllStoreNamesWhenKafkaStreamsNotAvailable() {
-        // Given
-        when(streamsBuilderFactoryBean.getKafkaStreams()).thenReturn(null);
-
-        // When & Then
-        assertThrows(IllegalStateException.class, () -> service.getAllStoreNames());
-    }
-
-    @Test
-    void testGetAllStoreNamesWithMultipleStores() {
-        // Given
-        Set<String> expectedStores = Set.of("store1", "store2", "store3");
-        when(streamsBuilderFactoryBean.getKafkaStreams()).thenReturn(kafkaStreams);
-        when(streamsMetadata.stateStoreNames()).thenReturn(expectedStores);
-        when(kafkaStreams.metadataForAllStreamsClients()).thenReturn(Collections.singleton(streamsMetadata));
+        Set<String> expectedStores = Set.of("user-store", "product-store", "order-store");
+        when(globalKTableRegistry.getAllRegisteredNames()).thenReturn(expectedStores);
 
         // When
         Set<String> result = service.getAllStoreNames();
@@ -152,5 +109,36 @@ class KafkaStateStoreServiceTest {
         // Then
         assertEquals(3, result.size());
         assertTrue(result.containsAll(expectedStores));
+        verify(globalKTableRegistry).getAllRegisteredNames();
+        // Verify that we're no longer calling the old Kafka Streams metadata method
+        verify(streamsBuilderFactoryBean, never()).getKafkaStreams();
+    }
+
+    @Test
+    void testGetAllStoreNamesWhenEmpty() {
+        // Given
+        when(globalKTableRegistry.getAllRegisteredNames()).thenReturn(Set.of());
+
+        // When
+        Set<String> result = service.getAllStoreNames();
+
+        // Then
+        assertTrue(result.isEmpty());
+        verify(globalKTableRegistry).getAllRegisteredNames();
+    }
+
+    @Test
+    void testGetAllStoreNamesWithSingleStore() {
+        // Given
+        Set<String> expectedStores = Set.of("single-store");
+        when(globalKTableRegistry.getAllRegisteredNames()).thenReturn(expectedStores);
+
+        // When
+        Set<String> result = service.getAllStoreNames();
+
+        // Then
+        assertEquals(1, result.size());
+        assertTrue(result.contains("single-store"));
+        verify(globalKTableRegistry).getAllRegisteredNames();
     }
 }

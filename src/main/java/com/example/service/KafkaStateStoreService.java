@@ -12,12 +12,13 @@ import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class KafkaStateStoreService {
     private final StreamsBuilderFactoryBean streamsBuilderFactoryBean;
+    private final GlobalKTableRegistry globalKTableRegistry;
+
 
     public<K,V>ReadOnlyKeyValueStore<K,V> getStoreFor(GlobalKTable<K,V> globalKTable) {
         return getStore(globalKTable.queryableStoreName());
@@ -29,11 +30,8 @@ public class KafkaStateStoreService {
     }
 
     public Set<String> getAllStoreNames() {
-        KafkaStreams kafkaStreams = getKafkaStream();
-        return kafkaStreams.metadataForAllStreamsClients()
-                .stream()
-                .flatMap(metadata -> metadata.stateStoreNames().stream())
-                .collect(Collectors.toSet());
+        // Use the registry instead of Kafka Streams metadata
+        return globalKTableRegistry.getAllRegisteredNames();
     }
 
     private KafkaStreams getKafkaStream() {
