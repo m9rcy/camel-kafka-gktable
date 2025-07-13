@@ -10,7 +10,7 @@ import java.util.Optional;
 import java.util.Set;
 
 @RestController
-@RequestMapping("/api/stores")
+@RequestMapping(value = "/api/stores", produces = "application/json")
 @RequiredArgsConstructor
 public class StoreController {
 
@@ -40,7 +40,7 @@ public class StoreController {
     }
 
     @GetMapping("/{storeName}/count")
-    public ResponseEntity<Long> getStoreCount(@PathVariable String storeName) {
+    public ResponseEntity<Object> getStoreCount(@PathVariable String storeName) {
         try {
             ReadOnlyKeyValueStore<String, Object> store = kafkaStateStoreService.getStore(storeName);
             long count = store.approximateNumEntries();

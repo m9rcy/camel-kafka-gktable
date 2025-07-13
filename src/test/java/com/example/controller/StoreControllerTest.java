@@ -99,7 +99,7 @@ class StoreControllerTest {
         when(kafkaStateStoreService.<Object, String>getStore(anyString())).thenReturn(keyValueStore);
         when(keyValueStore.approximateNumEntries()).thenReturn(expectedCount);
 
-        ResponseEntity<Long> response = storeController.getStoreCount(storeName);
+        ResponseEntity<Object> response = storeController.getStoreCount(storeName);
 
         assertEquals(200, response.getStatusCodeValue());
         assertEquals(expectedCount, response.getBody());
@@ -111,7 +111,7 @@ class StoreControllerTest {
         String storeName = "test-store";
         when(kafkaStateStoreService.<Object, String>getStore(anyString())).thenThrow(new RuntimeException());
 
-        ResponseEntity<Long> response = storeController.getStoreCount(storeName);
+        ResponseEntity<Object> response = storeController.getStoreCount(storeName);
 
         assertEquals(500, response.getStatusCodeValue());
         assertNull(response.getBody());
